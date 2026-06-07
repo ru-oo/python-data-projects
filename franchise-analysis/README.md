@@ -36,20 +36,14 @@
 
 ## 시스템 아키텍처
 
-```
-원천 CSV (가맹점 현황 + 좌표)
-        │
-        ▼
-전처리 / 좌표 변환 (EPSG:5174 → EPSG:4326)   ← exploration/ 스크립트
-        │
-        ▼
-franchise_analysis_corrected.csv  /  merged_result.csv
-        │
-        ▼
-Streamlit 대시보드 (app.py)
-   ├─ 탭1: pydeck 지도 + plotly 점유율 차트
-   ├─ 탭2: 브랜드 심층 분석 + 회귀 가설 검증
-   └─ 탭3: 시장 기회 사분면 매트릭스
+```mermaid
+flowchart TD
+    A[원천 CSV<br/>가맹점 현황 + 좌표] --> B[전처리 · 좌표 변환<br/>EPSG:5174 → EPSG:4326<br/>exploration/ 스크립트]
+    B --> C[(franchise_analysis_corrected.csv<br/>merged_result.csv)]
+    C --> D[Streamlit 대시보드 · app.py]
+    D --> T1[탭1 · pydeck 지도 + plotly 점유율 차트]
+    D --> T2[탭2 · 브랜드 심층 분석 + 회귀 가설 검증]
+    D --> T3[탭3 · 시장 기회 사분면 매트릭스]
 ```
 
 ## 기술 스택

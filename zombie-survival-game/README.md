@@ -5,7 +5,15 @@
 
 ## 데모
 
-> 게임 플레이 화면 스크린샷/GIF는 추후 추가 예정입니다. (실행 시 BGM·효과음 포함)
+타이틀 화면 — *Zombie Survival: Coupang Edition*
+
+![타이틀 화면](./picture/opening.png)
+
+DAY 1 벙커 홈 — 배고픔·목마름·정신력·에너지 스탯 관리, 외출(파밍), 생존 일지
+
+![벙커 홈 화면](./picture/main.png)
+
+> 실행 시 상태별 BGM·효과음이 함께 재생됩니다.
 
 ## 개요
 
@@ -25,16 +33,16 @@
 
 ## 시스템 아키텍처
 
-```
-main.py (Game 클래스 — 메인 루프 / 상태 머신)
-   ├─ config.py       # 화면·색상·테마·상수
-   ├─ player.py       # 플레이어 스탯 모델
-   ├─ simulation.py   # 일자 진행 / 스탯 변화 시뮬레이션
-   ├─ ui.py           # 렌더링 · EffectManager · 파티클
-   ├─ minigames.py    # IntroRoulette / OutdoorMinigame
-   ├─ actions.py      # 행동(주문·외출 등) 처리
-   └─ SoundManager    # 상태별 BGM / 효과음
-   (assets: sounds/, survival_font.ttf)
+```mermaid
+flowchart TD
+    M[main.py · Game<br/>메인 루프 / 상태 머신] --> C[config.py · 화면·색상·테마·상수]
+    M --> P[player.py · 플레이어 스탯 모델]
+    M --> S[simulation.py · 일자 진행 / 스탯 변화]
+    M --> U[ui.py · 렌더링 · EffectManager · 파티클]
+    M --> G[minigames.py · IntroRoulette / OutdoorMinigame]
+    M --> AC[actions.py · 행동 처리]
+    M --> SND[SoundManager · 상태별 BGM / 효과음]
+    SND -.-> AS[(assets · sounds/ · survival_font.ttf)]
 ```
 
 ## 기술 스택
@@ -78,6 +86,7 @@ zombie-survival-game/
 ├── actions.py         # 행동 처리
 ├── sounds/            # BGM / 효과음
 ├── survival_font.ttf
+├── picture/           # 게임 화면 스크린샷
 └── requirements.txt
 ```
 
