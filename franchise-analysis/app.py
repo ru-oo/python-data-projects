@@ -4,6 +4,7 @@ import pydeck as pdk
 import plotly.express as px
 import plotly.graph_objects as go
 import numpy as np
+import os
 from pyproj import Transformer
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.linear_model import LinearRegression
@@ -49,7 +50,8 @@ st.markdown("""
 @st.cache_data
 def load_raw_data():
     try:
-        df = pd.read_csv('franchise_analysis_corrected.csv')
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        df = pd.read_csv(os.path.join(base_dir, 'franchise_analysis_corrected.csv'))
         df['영업매장수_safe'] = df['영업매장수'].replace(0, 1)
         return df
     except FileNotFoundError:
@@ -59,7 +61,8 @@ def load_raw_data():
 @st.cache_data
 def load_coord_data():
     try:
-        df_points = pd.read_csv('merged_result.csv')
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        df_points = pd.read_csv(os.path.join(base_dir, 'merged_result.csv'))
         df_points['허가날짜'] = pd.to_datetime(df_points['허가날짜'], errors='coerce')
         df_points['폐업날짜'] = pd.to_datetime(df_points['폐업날짜'], errors='coerce')
         
@@ -97,8 +100,7 @@ def preprocess_for_tab1(df):
     return df_stat, national_income_avg
 
 # [탭 2 전용] 전처리
-@st.cache_data
-def preprocess_for_tab2_v3(df):
+def preprocess_for_tab2(df):
     df_app = df.copy()
     
     df_app['Category_Total'] = df_app.groupby(['연도', '시도', '업태 구분명'])['영업매장수'].transform('sum')
@@ -115,7 +117,8 @@ def preprocess_for_tab2_v3(df):
         df_app['Category_Density'] * df_app['Real_Market_Share_Pct'] * df_app['Income_Index'] * growth_factor
     )
     
-    region_total = df_app.groupby(['연도', '시도', '업태 구분명'])['Final_Score'].transform('sum').replace(0, 1)
+    # 점유율(Influence_Score) 계산
+    region_total = df_app.groupby(['연도', '시도'])['Final_Score'].transform('sum').replace(0, 1)
     df_app['Influence_Score'] = (df_app['Final_Score'] / region_total) * 100
 
     df_app['청년층(2030)'] = (df_app['남자_20~39세'] + df_app['여자_20~39세']) / df_app['전체_총인구수']
@@ -157,6 +160,9 @@ def preprocess_for_tab3(df):
     
     df_t3['Final_Score_Value'] = df_t3['Category_Density'] * df_t3['Real_Market_Share_Pct'] * df_t3['Income_Index'] * growth_factor
     
+    region_total = df_t3.groupby(['연도', '시도'])['Final_Score_Value'].transform('sum').replace(0, 1)
+    df_t3['Influence_Score'] = (df_t3['Final_Score_Value'] / region_total) * 100
+    
     analysis_cols = ['2030대_비율', '405010대_비율', '60대이후_비율', '1인당지역총소득', '1인가구_40세이하_비율', '폐업률']
     valid_cols = [c for c in analysis_cols if c in df_t3.columns]
     
@@ -194,7 +200,7 @@ selected_category = st.sidebar.selectbox("업태 선택", ["전체 (통합 1위)
 st.sidebar.markdown("---")
 
 # 탭 1 옵션
-st.sidebar.subheader("2. 지도 옵션 (탭1)")
+st.sidebar.subheader("2. 지도 옵션 (탭2)")
 regions = {
     "전국": {"lat": 36.0, "lon": 127.5, "zoom": 6},
     "서울": {"lat": 37.56, "lon": 126.97, "zoom": 9},  
@@ -207,7 +213,7 @@ selected_region = st.sidebar.selectbox("지도 중심점 이동", list(regions.k
 st.sidebar.markdown("---")
 
 # 탭 2 옵션
-st.sidebar.subheader("3. 브랜드 옵션 (탭2)")
+st.sidebar.subheader("3. 브랜드 옵션 (탭3)")
 selected_brand_tab2 = None
 if selected_category != "전체 (통합 1위)":
     temp_df = raw_df[(raw_df['연도'] == selected_year) & (raw_df['업태 구분명'] == selected_category)]
@@ -222,10 +228,126 @@ else:
 # -----------------------------------------------------------------------------
 # 4. 메인 탭 구성
 # -----------------------------------------------------------------------------
-tab1, tab2, tab3 = st.tabs(["📊 지배력 & 밀도 분석", "🎤 성과 요인 심층 분석", "🎯 시장 기회 매트릭스"])
+# [수정] 탭 구성 변경: '프로젝트 개요' 탭 추가
+tab0, tab1, tab2, tab3 = st.tabs(["📑 프로젝트 개요", "📊 지배력 & 밀도 분석", "🎤 점유율 요인 심층 분석", "🎯 시장 기회 매트릭스"])
 
 # =============================================================================
-# [TAB 1] 지배력 & 밀도 분석
+# [TAB 0] 프로젝트 개요 (수정됨: 디자인 개선 & 라이트모드 가독성 확보)
+# =============================================================================
+with tab0:
+    st.title("Franchise's Ranking Analysis")
+    st.markdown("### 🍔 프랜차이즈 순위 및 시장 분석 프로젝트")
+    
+    st.divider()
+
+    # --- 1. 프로젝트 개요 (Introduction) ---
+    st.subheader("프로젝트 개요 (Introduction)")
+    try:
+        st.image(os.path.join(os.path.dirname(os.path.abspath(__file__)), "ppt_intro.png"), caption="프로젝트 배경 및 개요", use_container_width=True)
+    except:
+        st.info("👋 'ppt_intro.png' 이미지를 폴더에 추가하면 이곳에 표시됩니다.")
+        st.markdown("""
+        본 프로젝트는 **공공 데이터**와 **공간 데이터**를 활용하여 대한민국 주요 프랜차이즈 시장의 **경쟁 현황**을 시각화하고, 
+        지역별 **성공 요인**을 분석하여 예비 창업자와 기업에게 실질적인 **시장 기회(Insight)**를 제공하는 것을 목적으로 합니다.
+        """)
+
+    # --- 2. 분석 대상 (Targets) ---
+    st.subheader("🎯 분석 대상 (Targets)")
+    st.markdown("본 프로젝트에서 분석한 **업종별 프랜차이즈 브랜드** 현황입니다.")
+    
+    # 데이터셋 내 모든 유니크 브랜드 추출
+    all_brands_in_data = sorted(raw_df['브랜드'].unique())
+    
+    t1, t2, t3, t4 = st.columns(4)
+    with t1:
+        st.markdown("#### 🍔 버거")
+        st.write("- 맥도날드\n- 롯데리아\n- 버거킹\n- 맘스터치")
+    with t2:
+        st.markdown("#### ☕ 카페")
+        st.write("- 스타벅스\n- 이디야커피\n- 빽다방\n- 투썸플레이스")
+    with t3:
+        st.markdown("#### 🍗 치킨")
+        st.write("- BBQ\n- BHC\n- 교촌치킨\n- 굽네치킨")
+    with t4:
+        st.markdown("#### 🍕 피자")
+        st.write("- 도미노피자\n- 피자헛\n- 미스터피자\n- 청년피자")
+    
+    with st.expander("🔍 조사된 모든 프랜차이즈 명단 보기"):
+        brand_cols = st.columns(5)
+        for i, brand in enumerate(all_brands_in_data):
+            brand_cols[i % 5].write(f"• {brand}")
+
+    st.divider()
+    
+    # --- 3. 팀원 소개 & 분석 프로세스 (수직 배치 & 가독성 개선) ---
+    st.subheader("👥 팀원 소개 (Team)")
+    # 배경색을 rgba(128, 128, 128, 0.1)로 설정하여 라이트/다크 모드 모두에서 텍스트가 잘 보이도록 함
+    st.markdown("""
+    <div style='background-color: rgba(128, 128, 128, 0.1); padding:20px; border-radius:10px; border:1px solid rgba(128, 128, 128, 0.2); margin-bottom:20px;'>
+        <h4 style='margin-top:0; color:#FF4B4B;'>Member</h4>
+        <p style='font-size:1.35rem; line-height:1.6;'>
+            <b>- 김세현</b> : 데이터 수집 및 전처리, 점유율 도출 및 스트림릿 구현<br>
+            <b>- 송승민</b> : 데이터 수집 및 전처리, 시장 기회 도출, 시각화<br>
+            <b>- 장현근</b> : 데이터 수집 및 전처리, 상관 관계 분석, 시각화<br>
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.subheader("🛠️ 분석 프로세스 (Process)")
+    st.markdown("""
+    <div style='background-color: rgba(128, 128, 128, 0.1); padding:20px; border-radius:10px; border:1px solid rgba(128, 128, 128, 0.2);'>
+        <p style='font-size:1.25rem; margin-bottom:8px;'><b>STEP 1. 개요 </b> : 프로젝트 개요 설명 및 데이터 소개</p>
+        <p style='font-size:1.25rem; margin-bottom:8px;'><b>STEP 2. 서론 </b> : 지역별 브랜드 지배력 분석</p>
+        <p style='font-size:1.25rem; margin-bottom:8px;'><b>STEP 3. 본론 </b> :  핵심 성공 요인(인구, 소득 등) 상관관계 분석</p>
+        <p style='font-size:1.25rem; margin-bottom:0px;'><b>STEP 4. 결론 </b> : 데이터 기반 시장 기회 매트릭스 도출 및 전략 제언</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # --- 4. 데이터 구축 (이미지 -> 설명 카드 -> 데이터프레임 순서) ---
+    st.subheader("📊 데이터 구축 및 활용 데이터셋 (Data)")
+    
+    # 1. 이미지
+    try:
+        st.image(os.path.join(os.path.dirname(os.path.abspath(__file__)), "ppt_data.png"), caption="Data Sources & Preprocessing Flow", use_container_width=True)
+    except:
+        st.info("👋 'ppt_data.png' 이미지를 추가하면 데이터 구축 장표가 표시됩니다.")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    # 2. 설명 카드 (색상 테마 적용: 파랑/초록/빨강 - 투명도 적용으로 가독성 확보)
+    d1, d2, d3 = st.columns(3)
+    with d1:
+        st.markdown("""
+        <div style='background-color: rgba(37, 99, 235, 0.1); padding:15px; border-radius:10px; border:1px solid rgba(37, 99, 235, 0.2); min-height:120px;'>
+            <h5 style='margin-top:0; color:#2563EB;'>🇰🇷 KOSIS (국가통계포털)</h5>
+            <p style='font-size:0.9rem;'>행정구역별 인구 통계<br>1인당 지역 총소득 데이터</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with d2:
+        st.markdown("""
+        <div style='background-color: rgba(5, 150, 105, 0.1); padding:15px; border-radius:10px; border:1px solid rgba(5, 150, 105, 0.2); min-height:120px;'>
+            <h5 style='margin-top:0; color:#059669;'>📂 공공데이터포털</h5>
+            <p style='font-size:0.9rem;'>행정 구역 및 상권 정보<br>ㅤ</p>
+        </div>
+        """, unsafe_allow_html=True)
+    with d3:
+        st.markdown("""
+        <div style='background-color: rgba(220, 38, 38, 0.1); padding:15px; border-radius:10px; border:1px solid rgba(220, 38, 38, 0.2); min-height:120px;'>
+            <h5 style='margin-top:0; color:#DC2626;'>🏢 LOCALDATA (지방행정)</h5>
+            <p style='font-size:0.9rem;'>프랜차이즈 인허가 현황<br>개업 및 폐업 이력 정보</p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # 3. 데이터프레임
+    st.markdown("#### 📋 분석 데이터셋 샘플 (DataFrame)")
+    st.markdown("분석에 활용된 통합 데이터셋의 상위 10개 행입니다.")
+    st.dataframe(raw_df.head(10), use_container_width=True)
+# =============================================================================
+# [TAB 1] 지배력 & 밀도 분석 (수정됨: 시장 규모 점유율 계산 로직 개선)
 # =============================================================================
 with tab1:
     df_all_stat, income_avg_val = preprocess_for_tab1(raw_df)
@@ -233,6 +355,14 @@ with tab1:
     df_year = df_all_stat[df_all_stat['연도'] == selected_year].copy()
     if selected_category != "전체 (통합 1위)":
         df_year = df_year[df_year['업태 구분명'] == selected_category].copy()
+
+    # [핵심 수정] 시장 점유율(Real_Market_Share_Pct) 재계산 로직 추가
+    # 기존: 해당 브랜드의 '업종 내' 점유율 (예: 맘스터치 / 전체 버거 매장 수)
+    # 변경: 현재 선택된 '전체 범위' 내 점유율 (예: 맘스터치 / (버거+치킨+카페+피자) 전체 매장 수)
+    # -> 이렇게 해야 '전체' 선택 시 업종을 불문하고 진짜 매장이 가장 많은 브랜드가 1위로 나옴.
+    
+    current_scope_total = df_year.groupby('시도')['영업매장수'].transform('sum')
+    df_year['Real_Market_Share_Pct'] = (df_year['영업매장수'] / current_scope_total) * 100
 
     region_total_score = df_year.groupby('시도')['Final_Score'].transform('sum')
     df_year['Influence_Share_Pct'] = (df_year['Final_Score'] / region_total_score) * 100
@@ -252,25 +382,62 @@ with tab1:
         df_map_filtered = pd.DataFrame()
 
     st.title(f" {selected_year}년 {selected_category} 점유율 분석")
-    st.subheader("지역별 매장 밀집도")
+    st.subheader("지역별 매장 밀집도 (3D Heatmap)")
     
     if not df_map_filtered.empty:
         view_info = regions[selected_region]
-        view_state = pdk.ViewState(latitude=view_info["lat"], longitude=view_info["lon"], zoom=view_info["zoom"], pitch=45)
+        
+        view_state = pdk.ViewState(
+            latitude=view_info["lat"],
+            longitude=view_info["lon"],
+            zoom=view_info["zoom"],
+            pitch=55,   
+            bearing=30  
+        )
 
         layer = pdk.Layer(
             "HexagonLayer",
             data=df_map_filtered,
             get_position=["lon", "lat"],
             radius=400,
-            elevation_scale=30,
+            coverage=0.88,        
+            elevation_scale=40,
             elevation_range=[0, 3000],
             extruded=True,
             pickable=True,
             auto_highlight=True,
-            color_range=[[255, 255, 178], [254, 217, 118], [254, 178, 76], [253, 141, 60], [240, 59, 32], [189, 0, 38]]
+            color_range = [
+                [37, 52, 148],
+                [44, 127, 184],
+                [65, 182, 196],
+                [127, 205, 187],
+                [199, 233, 180],
+                [255, 255, 204]
+            ],
+            material={
+                "ambient": 0.8,
+                "diffuse": 0.9,
+                "shininess": 150,
+                "specularColor": [255, 255, 230]
+            },
+            transitions={'elevationScale': 1000}
         )
-        st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_state, tooltip={"text": "매장 밀집 구역"}))
+        
+        deck = pdk.Deck(
+            layers=[layer],
+            initial_view_state=view_state,
+            map_style=pdk.map_styles.CARTO_DARK, 
+            tooltip={
+                "html": """
+                    <div style='background: rgba(20, 20, 30, 0.9); color: white; padding: 12px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, 0.2); box-shadow: 0 4px 6px rgba(0,0,0,0.3);'>
+                        <span style='font-size: 0.9em; color: #aaa;'>매장 밀집도</span><br/>
+                        <span style='font-size: 1.5em; font-weight: bold; color: #FFDD00;'>{elevationValue}개</span>
+                        <span style='font-size: 0.9em;'> 점포 추정</span>
+                    </div>
+                """
+            }
+        )
+        st.pydeck_chart(deck, use_container_width=True, key="pdk_hex_map")
     else:
         st.warning("지도 데이터가 없거나 필터링된 결과가 없습니다.")
 
@@ -285,6 +452,7 @@ with tab1:
         st.plotly_chart(fig1, use_container_width=True)
     with c2:
         st.markdown("**② 시장 규모 (물량)**")
+        # [수정] 위에서 재계산한 Real_Market_Share_Pct가 반영됨
         fig2 = px.bar(top_market, x='시도', y='Real_Market_Share_Pct', color='브랜드', height=280, labels={'Real_Market_Share_Pct': '시장 점유율(%)'})
         fig2.update_layout(showlegend=False, margin=dict(t=10, b=10, l=10, r=10))
         st.plotly_chart(fig2, use_container_width=True)
@@ -309,24 +477,37 @@ with tab1:
         "뚜레쥬르": "#0B4619", "비비큐(BBQ)": "#DE9406", "교촌치킨": "#C49A6C", "BHC": "#F5C251"
     }
 
-    # [수정] 라벨 텍스트 변경 (영향력 -> 점유율)
-    top_influence['Label'] = top_influence.apply(lambda x: f"<b>{x['브랜드']}</b><br>{x['Influence_Share_Pct']:.1f}%", axis=1)
+    def format_label_with_arrow(row):
+        brand = row['브랜드']
+        share = row['Influence_Share_Pct']
+        growth = row['Growth_Rate'] * 100
+        
+        if growth > 0:
+            growth_str = f"<span style='color:#EF4444'>▲ +{growth:.1f}%</span>"
+        elif growth < 0:
+            growth_str = f"<span style='color:#3B82F6'>▼ {abs(growth):.1f}%</span>"
+        else:
+            growth_str = f"<span style='color:gray'>- 0.0%</span>"
+            
+        return f"<b>{brand}</b><br>{share:.1f}%<br>{growth_str}"
+
+    top_influence['Label'] = top_influence.apply(format_label_with_arrow, axis=1)
+    
     fig_after = px.bar(top_influence, x='시도', y='Influence_Share_Pct', color='브랜드', text='Label', color_discrete_map=brand_colors)
     fig_after.update_traces(textposition='outside', textfont_size=12, cliponaxis=False)
-    # [수정] Y축 제목 변경
-    fig_after.update_layout(xaxis_title="지역", yaxis_title="점유율 (%)", height=550, yaxis=dict(range=[0, 80], dtick=5), margin=dict(t=100, b=50, l=50, r=50), showlegend=True)
+    fig_after.update_layout(xaxis_title="지역", yaxis_title="영향력 점유율 (%)", height=550, yaxis=dict(range=[0, 80], dtick=5), margin=dict(t=100, b=50, l=50, r=50), showlegend=True)
     st.plotly_chart(fig_after, use_container_width=True)
 
-    with st.expander("📋 물량 1위 vs 점유율 1위 데이터 시트"):
+    with st.expander("📋 물량 1위 vs 영향력 1위 데이터 시트"):
         comp_df = pd.merge(
             top_market[['시도', '브랜드', 'Real_Market_Share_Pct']].rename(columns={'브랜드': '물량 1위', 'Real_Market_Share_Pct': '물량 점유율'}),
-            top_influence[['시도', '브랜드', 'Influence_Share_Pct', 'Growth_Rate']].rename(columns={'브랜드': '점유율 1위', 'Influence_Share_Pct': '점유율(질적)', 'Growth_Rate': '성장률'}),
+            top_influence[['시도', '브랜드', 'Influence_Share_Pct', 'Growth_Rate']].rename(columns={'브랜드': '영향력 1위', 'Influence_Share_Pct': '영향력 점유율', 'Growth_Rate': '성장률'}),
             on='시도'
         )
-        st.dataframe(comp_df.style.highlight_max(axis=0, subset=['점유율(질적)'], color='#e6f4ea'), use_container_width=True)
+        st.dataframe(comp_df.style.highlight_max(axis=0, subset=['영향력 점유율'], color='#e6f4ea'), use_container_width=True)
 
 # =============================================================================
-# [TAB 2] 성과 요인 심층 분석 (수정: 1등 지역 특성 우선 반영 로직 + 점유율 표기)
+# [TAB 2] 성과 요인 심층 분석 (수정됨: 1등 지역 특성 우선 반영 로직)
 # =============================================================================
 with tab2:
     if selected_category == "전체 (통합 1위)":
@@ -334,7 +515,7 @@ with tab2:
     elif selected_brand_tab2 is None:
         st.warning("⚠️ 사이드바에서 분석할 브랜드를 선택해주세요.")
     else:
-        df_all_app = preprocess_for_tab2_v3(raw_df)
+        df_all_app = preprocess_for_tab2(raw_df)
         df_target = df_all_app[(df_all_app['연도'] == selected_year) & (df_all_app['업태 구분명'] == selected_category)].copy()
         df_brand = df_target[df_target['브랜드'] == selected_brand_tab2].copy()
 
@@ -342,54 +523,48 @@ with tab2:
             st.error("선택한 브랜드의 데이터가 없습니다.")
         else:
             analysis_cols = ['청년층(2030)', '중장년층(4050)', '노년층(60+)', '청년1인가구', '지역소득']
-            corr_series = df_brand[analysis_cols + ['Influence_Score']].corr()['Influence_Score'].drop('Influence_Score').fillna(0)
             
-            # 1. 양의 상관관계(성공 요인) 후보 추출
-            positive_candidates = corr_series[corr_series > 0].sort_values(ascending=False).index.tolist()
-
-            # 2. 1등 지역 데이터 추출
-            top_region_row = df_brand.sort_values(by='Influence_Score', ascending=False).iloc[0]
-            top_region_name = top_region_row['시도']
-
-            # 3. [핵심 로직] 1등 지역이 평균보다 높은 '진짜' 성공 요인 찾기
-            strongest_factor = None
-            is_positive = False
-
-            if positive_candidates:
-                # 후보군 중에서 1등 지역 수치가 평균보다 높은 첫 번째 변수 선택
-                for feature in positive_candidates:
-                    if top_region_row[feature] > df_brand[feature].mean():
-                        strongest_factor = feature
-                        is_positive = True
-                        break
+            # [수정] 성공 요인 도출 로직 개선
+            # 기존: 단순 전국 상관계수 1위 -> 문제점: 1등 지역(울산)의 특성(소득)이 묻힘
+            # 개선: '1등 지역'에서 '전국 평균' 대비 가장 두드러지는(Gap이 큰) 요인을 선정
+            
+            if not df_brand.empty:
+                # 1. 1등 지역 찾기
+                top_region_row = df_brand.sort_values(by='Influence_Score', ascending=False).iloc[0]
+                top_region_name = top_region_row['시도']
                 
-                # 만약 양의 상관관계 변수 중 1등 지역이 잘하는 게 하나도 없다면?
-                if strongest_factor is None:
-                    strongest_factor = positive_candidates[0]
-                    is_positive = True
-            else:
-                # 양의 상관관계가 아예 없는 경우
-                strongest_factor = corr_series.abs().idxmax()
-                is_positive = False
+                # 2. 데이터 정규화 (MinMax) - 변수 간 스케일 맞춤
+                scaler = MinMaxScaler()
+                X = df_brand[analysis_cols].fillna(0)
+                X_scaled = pd.DataFrame(scaler.fit_transform(X), columns=analysis_cols, index=df_brand['시도'])
+                
+                # 3. 1등 지역의 정규화된 값 가져오기
+                top_region_vals = X_scaled.loc[top_region_name]
+                
+                # 4. 가장 높은 점수를 기록한 요인을 '핵심 성공 요인'으로 선정
+                # (예: 울산은 소득 점수가 1.0(최대)에 가까우므로 '지역소득'이 선정됨)
+                strongest_factor = top_region_vals.idxmax()
+                
+                # 상관계수도 참고용으로 계산 (양/음 관계 파악)
+                corr_val = df_brand[strongest_factor].corr(df_brand['Influence_Score'])
+                is_positive = corr_val > 0
             
-            st.title(f"🎤 {selected_brand_tab2} 성과 요인 심층 분석")
+            st.title(f"🎤 {selected_brand_tab2} 점유율 요인 심층 분석")
             st.markdown("""
-            이 분석은 **현재의 성과(Where)**를 진단하고, 그 성과를 만들어낸 **핵심 성공 동인(Success Driver)**을 데이터로 증명합니다.
+            이 분석은 **현재의 점유율**을 진단하고, 그 성과를 만들어낸 **핵심 점유율 동인**을 데이터로 증명합니다.
             """)
             st.divider()
 
             # --- [PART 1] 현황 진단 ---
-            st.header("1. 전국 점유율 분포 (현황 진단)")
+            st.header("1. 전국 점유율 분포")
             col1, col2 = st.columns([1.5, 1])
 
             with col1:
-                # [수정] Influence_Score -> 점유율 로 표기 변경
                 fig_map = px.treemap(
                     df_brand, path=['시도'], values='Influence_Score',
                     color='Influence_Score', color_continuous_scale='Reds',
-                    title=f"지역별 점유율 현황 ({selected_year})", # [수정] 제목 변경
-                    hover_data=['영업매장수'],
-                    labels={'Influence_Score': '점유율'} # [수정] 라벨 변경
+                    title=f"지역별 점유율 현황 ({selected_year})",
+                    labels={'Influence_Score': '점유율'} 
                 )
                 fig_map.update_traces(textinfo="label+value+percent root")
                 fig_map.update_layout(height=450, margin=dict(t=30, b=0, l=0, r=0))
@@ -403,99 +578,79 @@ with tab2:
                     .background_gradient(subset=['점유율'], cmap='Reds'),
                     use_container_width=True, hide_index=True
                 )
-                st.info("ℹ️ **점유율(Influence Score)이란?** 밀도, 소득, 성장성을 종합하여 브랜드의 '실질적 지배력'을 0~100으로 환산한 지표입니다.")
 
             st.divider()
 
             # --- [PART 2] 성공 DNA 분석 ---
-            st.header("2. 1등 지역의 성공 DNA (핵심 요인 분석)")
-            if not df_brand.empty:
-                # 비교를 위한 값 계산
-                top_val = top_region_row[strongest_factor]
-                avg_val = df_brand[strongest_factor].mean()
-                is_higher_than_avg = top_val > avg_val
+            st.header("2. 1등 점유율 지역의 성공 핵심 요인 분석")
+            
+            st.markdown(f"""
+            가장 점유율이 높은 **{top_region_name}** 지역은 어떤 인구 특성을 가지고 있을까요?  
+            **1등 지역이 전국 평균 대비 가장 압도적인 우위를 보이는 특성**을 분석했습니다.
+            """)
+
+            # 레이더 차트 데이터 준비
+            values_top = X_scaled.loc[top_region_name].tolist()
+            values_top += values_top[:1]
+            values_avg = X_scaled.mean().tolist()
+            values_avg += values_avg[:1]
+            categories_radar = analysis_cols + [analysis_cols[0]]
+
+            c1, c2 = st.columns([1.5, 1])
+
+            with c1:
+                fig_radar = go.Figure()
+                fig_radar.add_trace(go.Scatterpolar(r=values_avg, theta=categories_radar, fill='toself', name='전국 평균', line_color='gray', opacity=0.3))
+                fig_radar.add_trace(go.Scatterpolar(r=values_top, theta=categories_radar, fill='toself', name=f'1등 지역 ({top_region_name})', line_color='#E74C3C', marker=dict(size=8)))
+                fig_radar.update_layout(
+                    polar=dict(radialaxis=dict(visible=True, range=[0, 1], showticklabels=False)), 
+                    showlegend=True, height=450, title="성공 요인 프로파일",
+                    template="streamlit"
+                )
+                st.plotly_chart(fig_radar, use_container_width=True)
+
+            with c2:
+                # 텍스트 로직 수정
+                explanation = f"<b>{top_region_name}</b>은(는) 다른 지역보다 <br><b style='color:#FF4B4B; font-size:1.1em;'>{strongest_factor}</b> 수치가 월등히 높습니다."
+                key_insight = f"{strongest_factor} 우위 지역"
 
                 st.markdown(f"""
-                가장 성과가 좋은 **{top_region_name}** 지역은 어떤 인구 특성을 가지고 있을까요?  
-                **상관관계가 높으면서 실제 1등 지역이 보유한 강점**을 분석했습니다.
-                """)
-
-                scaler = MinMaxScaler()
-                X_factors = df_brand[analysis_cols].fillna(0)
-                if len(X_factors) > 0:
-                    scaled_vals = scaler.fit_transform(X_factors)
-                    df_scaled = pd.DataFrame(scaled_vals, columns=analysis_cols, index=df_brand['시도'])
-
-                    values_top = df_scaled.loc[top_region_name].tolist()
-                    values_top += values_top[:1]
-                    values_avg = df_scaled.mean().tolist()
-                    values_avg += values_avg[:1]
-                    categories_radar = analysis_cols + [analysis_cols[0]]
-
-                    c1, c2 = st.columns([1.5, 1])
-
-                    with c1:
-                        fig_radar = go.Figure()
-                        fig_radar.add_trace(go.Scatterpolar(r=values_avg, theta=categories_radar, fill='toself', name='전국 평균', line_color='gray', opacity=0.3))
-                        fig_radar.add_trace(go.Scatterpolar(r=values_top, theta=categories_radar, fill='toself', name=f'1등 지역 ({top_region_name})', line_color='#E74C3C', marker=dict(size=8)))
-                        fig_radar.update_layout(
-                            polar=dict(radialaxis=dict(visible=True, range=[0, 1], showticklabels=False)), 
-                            showlegend=True, height=450, title="성공 요인 프로파일",
-                            template="streamlit"
-                        )
-                        st.plotly_chart(fig_radar, use_container_width=True)
-
-                    with c2:
-                        if is_positive and is_higher_than_avg:
-                            explanation = f"데이터 분석 결과, **{selected_brand_tab2}**는 <b>{strongest_factor}</b> 비율이 높을수록 성과가 좋습니다."
-                            key_insight = f"{strongest_factor} 우수 지역"
-                            conclusion = f"따라서 <b>{top_region_name}</b> 지역이 1등인 이유는, 브랜드 성공의 핵심인 <b>{strongest_factor}</b> 경쟁력을 완벽하게 갖췄기 때문입니다."
-                        elif is_positive and not is_higher_than_avg:
-                            explanation = f"일반적으로는 <b>{strongest_factor}</b> 비율이 높을수록 유리하지만, 1등 지역은 예외적인 패턴을 보입니다."
-                            key_insight = f"차별화된 성공 ({strongest_factor} 외 요인)"
-                            conclusion = f"<b>{top_region_name}</b> 지역은 <b>{strongest_factor}</b> 수치는 낮지만, 압도적인 매장 운영 능력이나 입지 선점으로 1등을 차지한 **아웃라이어(Outlier)**입니다."
-                        else:
-                            explanation = f"이 브랜드는 <b>{strongest_factor}</b> 비율이 <span style='color:#FF4B4B;'>낮을수록</span> 오히려 성과가 좋은 경향을 보입니다."
-                            key_insight = f"{strongest_factor} 최소화 지역"
-                            conclusion = f"<b>{top_region_name}</b> 지역은 이러한 성공 패턴에 맞춰 <b>{strongest_factor}</b> 비율이 낮게 유지되고 있어 최적의 성과를 냈습니다."
-
-                        st.markdown(f"""
-                        <div style='background-color:#262730; color:white; padding:20px; border-radius:10px; border:1px solid #444;'>
-                            <h3 style='color:#FF4B4B; margin-top:0;'>💡 데이터 해석 (Insight)</h3>
-                            <p>핵심 변수: <b style='color:#FF4B4B; font-size:1.2em;'>{strongest_factor}</b></p>
-                            <hr style='border-color:#555;'>
-                            <p>{explanation}</p>
-                            <p>{conclusion}</p>
-                        </div>
-                        """, unsafe_allow_html=True)
+                <div style='background-color:#262730; color:white; padding:20px; border-radius:10px; border:1px solid #444;'>
+                    <h3 style='color:#FF4B4B; margin-top:0;'>💡 데이터 해석 (Insight)</h3>
+                    <p>분석 결과, <b>{selected_brand_tab2}</b>의 1등 지역({top_region_name})을 만든 핵심 요인은 
+                    <b style='color:#FF4B4B; font-size:1.2em;'>{strongest_factor}</b> 입니다.</p>
+                    <hr style='border-color:#555;'>
+                    <p>{explanation}</p>
+                    <p>따라서 이 브랜드는 <b>{key_insight}</b>에서 최고의 성과를 낼 가능성이 높습니다.</p>
+                </div>
+                """, unsafe_allow_html=True)
 
             st.divider()
 
             # --- [PART 3] 근거 검증 ---
             st.header("3. 데이터 검증 (가설 입증)")
-            st.markdown(f"핵심 변수 **[{strongest_factor}]**가 실제로 성과를 견인하는지 확인합니다.")
+            st.markdown(f"핵심 변수 {strongest_factor}가 실제로 점유율을 견인하는지 확인합니다.")
 
             reg_df = df_brand[[strongest_factor, 'Influence_Score', '시도']].dropna()
             if len(reg_df) > 1:
-                X = reg_df[[strongest_factor]]
-                y = reg_df['Influence_Score']
+                X_reg = reg_df[[strongest_factor]]
+                y_reg = reg_df['Influence_Score']
                 model = LinearRegression()
-                model.fit(X, y)
-                r2 = model.score(X, y)
+                model.fit(X_reg, y_reg)
+                r2 = model.score(X_reg, y_reg)
                 
-                x_range = np.linspace(X.min().values[0], X.max().values[0], 100).reshape(-1, 1)
+                x_range = np.linspace(X_reg.min().values[0], X_reg.max().values[0], 100).reshape(-1, 1)
                 y_pred = model.predict(x_range)
                 
                 fig_scatter = px.scatter(
                     reg_df, x=strongest_factor, y='Influence_Score', text='시도', color='시도',
-                    labels={strongest_factor: f'{strongest_factor} (성공 요인)', 'Influence_Score': '점유율'}, # [수정] 라벨 변경
-                    title=f"[{strongest_factor}]와 점유율의 상관관계"
+                    labels={strongest_factor: f'{strongest_factor} (성공 요인)', 'Influence_Score': '점유율'},
+                    title=f"{strongest_factor}와 점유율의 상관 관계"
                 )
-                fig_scatter.add_trace(go.Scatter(x=x_range.flatten(), y=y_pred, mode='lines', name='성공 추세선', line=dict(color='gray', dash='dash')))
+                fig_scatter.add_trace(go.Scatter(x=x_range.flatten(), y=y_pred, mode='lines', name='추세선', line=dict(color='gray', dash='dash')))
                 
-                # R2 위치 조정 (오른쪽 아래)
                 fig_scatter.add_annotation(
-                    x=X.max().values[0], y=y.min(),
+                    x=X_reg.max().values[0], y=y_reg.min(),
                     text=f"R² = {r2:.2f}", showarrow=False, font=dict(size=16, color="red", weight="bold"),
                     align="right", xanchor="right", bgcolor="rgba(255,255,255,0.7)"
                 )
@@ -504,15 +659,14 @@ with tab2:
                 fig_scatter.update_layout(height=500, showlegend=False, template="streamlit")
                 st.plotly_chart(fig_scatter, use_container_width=True)
                 
-                if is_positive and not is_higher_than_avg:
-                     st.info(f"ℹ️ **특이 사항 발견**: 전반적인 추세선은 우상향(비례)하지만, 1등 지역인 **{top_region_name}**은 추세선 좌측 상단에 위치한 예외 케이스입니다. 이는 해당 지역이 일반적인 인구 통계 법칙을 뛰어넘는 성과를 내고 있음을 보여줍니다.")
-                elif r2 > 0.1:
-                    st.success(f"✅ **검증 완료**: 점선(추세선)이 우상향하고 있습니다. 이는 **{strongest_factor}**가 높을수록 브랜드 점유율이 상승한다는 통계적 증거입니다.")
+                # 검증 메시지도 수정
+                if is_positive:
+                    st.success(f"✅ **검증 완료**: {top_region_name}의 높은 **{strongest_factor}** 특성이 브랜드 점유율 상승에 긍정적인 영향을 미치고 있음을 확인했습니다.")
                 else:
-                    st.warning(f"⚠️ **검증 주의**: {strongest_factor}와의 연관성이 다소 약합니다. 다른 요인(경쟁, 입지)이 더 중요할 수 있습니다.")
+                    st.info(f"ℹ️ **참고**: {strongest_factor}는 {top_region_name}만의 독특한 성공 요인으로 보입니다. (전국적인 상관관계보다는 해당 지역 특화 요인)")
 
 # =============================================================================
-# [TAB 3] 시장 기회 매트릭스 (다크모드 완벽 대응)
+# [TAB 3] 시장 기회 매트릭스 (다크/라이트 모드 호환성 개선)
 # =============================================================================
 with tab3:
     df_stats = preprocess_for_tab3(raw_df)
@@ -547,7 +701,9 @@ with tab3:
         if not df_analysis.empty:
             scaler = MinMaxScaler(feature_range=(0, 100))
             df_analysis['잠재력_점수'] = scaler.fit_transform(df_analysis[[target_feature]])
-            df_analysis['실제_점수'] = scaler.fit_transform(df_analysis[['Final_Score_Value']])
+            
+            # [수정됨] Influence_Score(점유율)로 정규화
+            df_analysis['실제_점수'] = scaler.fit_transform(df_analysis[['Influence_Score']])
             
             def get_market_color(row):
                 if row['잠재력_점수'] >= 50 and row['실제_점수'] >= 50: return '#059669' # 선도
@@ -558,7 +714,7 @@ with tab3:
             df_analysis['점색상'] = df_analysis.apply(get_market_color, axis=1)
 
             # ---------------------------------------------------------
-            # 4. 그래프 시각화 (다크모드 대응 최적화)
+            # 4. 그래프 시각화 (호환성 개선)
             # ---------------------------------------------------------
             fig_quad = px.scatter(
                 df_analysis, x='잠재력_점수', y='실제_점수', text='시도',
@@ -566,51 +722,55 @@ with tab3:
                 height=750, hover_name='시도'
             )
             
-            # 사분면 배경 (기회 시장 강조)
-            # 눈부심 방지를 위해 밝은 하늘색 대신 투명도 있는 파란색 사용
+            # [수정] 사분면 배경: 투명도를 조절하여 다크/라이트 모두에서 은은하게 보이도록 설정
             fig_quad.add_shape(
                 type="rect", x0=50, y0=-15, x1=115, y1=50,
-                fillcolor="rgba(59, 130, 246, 0.15)", # 은은한 파란색 (다크모드 호환)
+                fillcolor="rgba(59, 130, 246, 0.1)", # 매우 연한 파란색
                 opacity=1, layer="below", line_width=0
             )
 
-            # 기준선 (다크모드에서도 잘 보이는 반투명 흰색 점선)
-            fig_quad.add_vline(x=50, line_dash="dash", line_color="rgba(255,255,255,0.4)")
-            fig_quad.add_hline(y=50, line_dash="dash", line_color="rgba(255,255,255,0.4)")
+            # [수정] 기준선: 완전 흰색 대신 '중립적인 회색' 점선 사용
+            neutral_line_color = "rgba(128, 128, 128, 0.5)" 
+            fig_quad.add_vline(x=50, line_dash="dash", line_color=neutral_line_color)
+            fig_quad.add_hline(y=50, line_dash="dash", line_color=neutral_line_color)
 
-            # 라벨 스타일 (다크모드에서도 잘 보이도록 밝은 회색)
-            label_style = dict(size=18, color="#E5E7EB", family="Malgun Gothic", weight="bold")
-            fig_quad.add_annotation(x=-13, y=113, text="🔥 과열 시장", showarrow=False, font=label_style, xanchor="left", yanchor="top")
-            fig_quad.add_annotation(x=113, y=113, text="⭐ 선도 시장", showarrow=False, font=label_style, xanchor="right", yanchor="top")
-            fig_quad.add_annotation(x=-13, y=-13, text="💤 열위 시장", showarrow=False, font=label_style, xanchor="left", yanchor="bottom")
-            fig_quad.add_annotation(x=113, y=-13, text="💎 기회 시장", showarrow=False, font=label_style, xanchor="right", yanchor="bottom")
+            # [수정] 라벨 스타일: 색상 지정을 제거하여 테마에 따라 자동 반전되도록 함
+            # 글자 크기만 키우고 색상은 시스템에 맡김
+            label_font = dict(size=18, weight="bold") 
+            
+            fig_quad.add_annotation(x=-13, y=113, text="🔥 과열 시장", showarrow=False, font=label_font, xanchor="left", yanchor="top")
+            fig_quad.add_annotation(x=113, y=113, text="⭐ 선도 시장", showarrow=False, font=label_font, xanchor="right", yanchor="top")
+            fig_quad.add_annotation(x=-13, y=-13, text="💤 열위 시장", showarrow=False, font=label_font, xanchor="left", yanchor="bottom")
+            fig_quad.add_annotation(x=113, y=-13, text="💎 기회 시장", showarrow=False, font=label_font, xanchor="right", yanchor="bottom")
 
-            # 레이아웃 설정
+            # [수정] 레이아웃 설정: 
+            # 1. template="plotly_dark" 제거 (자동 테마 적용을 위해)
+            # 2. 축 색상, 그리드 색상 강제 지정 제거
             fig_quad.update_layout(
-                xaxis=dict(title=f"지역 잠재력 점수 ({selected_label})", range=[-15, 115], zeroline=False, color="#E5E7EB"),
-                # [수정] Y축 라벨 변경
-                yaxis=dict(title="종합 점유율 점수 (Final Score)", range=[-15, 115], zeroline=False, color="#E5E7EB"),
-                plot_bgcolor='rgba(0,0,0,0)',  # 차트 배경 투명 (앱 배경색 사용) -> 깜빡임 제거
-                paper_bgcolor='rgba(0,0,0,0)', # 외곽 배경 투명
+                xaxis=dict(title=f"지역 잠재력 점수 ({selected_label})", range=[-15, 115], zeroline=False),
+                yaxis=dict(title="종합 영향력 점유율 (Influence Score)", range=[-15, 115], zeroline=False),
+                plot_bgcolor='rgba(0,0,0,0)',  # 투명 배경
+                paper_bgcolor='rgba(0,0,0,0)', # 투명 배경
                 showlegend=False,
                 margin=dict(t=50, b=50, l=50, r=50),
-                template="plotly_dark" # 다크모드 기본 템플릿 사용 (안전장치)
+                # template="streamlit" # Streamlit 기본 템플릿 사용 (명시하지 않아도 됨)
             )
             
-            # 그리드 라인 설정 (은은한 그리드)
-            fig_quad.update_xaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
-            fig_quad.update_yaxes(showgrid=True, gridwidth=1, gridcolor='rgba(255,255,255,0.1)')
+            # [수정] 그리드 라인: 강제 흰색 제거 -> 시스템 기본값(회색조) 사용
+            fig_quad.update_xaxes(showgrid=True, gridwidth=1)
+            fig_quad.update_yaxes(showgrid=True, gridwidth=1)
             
-            # 점 스타일 및 글자(지역명) 색상 설정
+            # [수정] 점 스타일: 텍스트 색상 강제(white) 제거 -> 테마에 따름
+            # 테두리(line) 색상도 제거하여 깔끔하게 표현
             fig_quad.update_traces(
                 mode='markers+text',
-                marker=dict(size=18, line=dict(width=1.5, color='white')),
+                marker=dict(size=18, line=dict(width=1, color='rgba(0,0,0,0.2)')), # 테두리는 연한 그림자처럼 처리
                 textposition='top center',
                 textfont=dict(
-                    color='white',  # 다크모드용 흰색 텍스트
                     size=13,
-                    family="Malgun Gothic",
+                    # family="Malgun Gothic",
                     weight="bold"
+                    # color='white'  <-- 이 부분을 제거해야 라이트 모드에서 글씨가 보입니다.
                 )
             )
             
@@ -630,15 +790,15 @@ with tab3:
             col1, col2, col3, col4 = st.columns(4)
             with col1:
                 list_q = df_analysis[df_analysis['영역']=='기회']['시도'].tolist()
-                st.markdown(f'<div class="quad_card q_blue"><div class="card-title">💎 기회 시장</div><div class="card-list">{", ".join(list_q) if list_q else "해당 없음"}</div><div class="card-desc">잠재력은 높으나 브랜드 점유율이 낮은 블루오션입니다.</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="quad_card q_blue"><div class="card-title">💎 기회 시장</div><div class="card-list">{", ".join(list_q) if list_q else "해당 없음"}</div><div class="card-desc">잠재력은 높으나 브랜드 영향력이 낮은 블루오션입니다.</div></div>', unsafe_allow_html=True)
             with col2:
                 list_q = df_analysis[df_analysis['영역']=='선도']['시도'].tolist()
-                st.markdown(f'<div class="quad_card q_green"><div class="card-title">⭐ 선도 시장</div><div class="card-list">{", ".join(list_q) if list_q else "해당 없음"}</div><div class="card-desc">점유율과 시장 잠재력이 모두 검증된 핵심 상권입니다.</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="quad_card q_green"><div class="card-title">⭐ 선도 시장</div><div class="card-list">{", ".join(list_q) if list_q else "해당 없음"}</div><div class="card-desc">영향력과 시장 잠재력이 모두 검증된 핵심 상권입니다.</div></div>', unsafe_allow_html=True)
             with col3:
                 list_q = df_analysis[df_analysis['영역']=='과열']['시도'].tolist()
                 st.markdown(f'<div class="quad_card q_red"><div class="card-title">🔥 과열 시장</div><div class="card-list">{", ".join(list_q) if list_q else "해당 없음"}</div><div class="card-desc">경쟁이 매우 치열한 레드오션입니다. 추가 진입에 신중해야 합니다.</div></div>', unsafe_allow_html=True)
             with col4:
                 list_q = df_analysis[df_analysis['영역']=='열위']['시도'].tolist()
-                st.markdown(f'<div class="quad_card q_gray"><div class="card-title">💤 열위 시장</div><div class="card-list">{", ".join(list_q) if list_q else "해당 없음"}</div><div class="card-desc">시장 규모와 브랜드 점유율이 모두 낮은 소외 지역입니다.</div></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="quad_card q_gray"><div class="card-title">💤 열위 시장</div><div class="card-list">{", ".join(list_q) if list_q else "해당 없음"}</div><div class="card-desc">시장 규모와 브랜드 영향력이 모두 낮은 소외 지역입니다.</div></div>', unsafe_allow_html=True)
     else:
         st.info("데이터가 없습니다.")

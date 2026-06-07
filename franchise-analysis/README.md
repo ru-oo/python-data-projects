@@ -5,9 +5,17 @@
 
 ## 데모
 
-![대시보드 소개](./ppt_intro.png)
+**탭 1 — 지배력 & 밀도 분석**: 지역별 점유율과 3D 매장 밀집도(pydeck), 점유율 지표 차트
 
-> 실제 실행 화면 스크린샷/GIF는 추후 추가 예정입니다.
+![지배력 & 밀도 분석](./picture/page1.jpeg)
+
+**탭 2 — 성과 요인 심층 분석**: 브랜드 전국 점유율 분포, 1등 지역 성공 요인 레이더, 회귀 기반 가설 검증
+
+![성과 요인 심층 분석](./picture/page2.jpeg)
+
+**탭 3 — 시장 기회 매트릭스**: 잠재력 × 점유율 사분면(기회/선도/과열/열위) 진단 리포트
+
+![시장 기회 매트릭스](./picture/page3.jpeg)
 
 ## 개요
 
@@ -81,6 +89,7 @@ streamlit run app.py
 franchise-analysis/
 ├── app.py              # 최종 통합 대시보드 (Streamlit)
 ├── dashboard.html      # 정적 산출물
+├── picture/            # 대시보드 실행 화면 스크린샷 (3개 탭)
 ├── ppt_intro.png       # 발표 자료 이미지
 ├── ppt_data.png
 ├── requirements.txt
