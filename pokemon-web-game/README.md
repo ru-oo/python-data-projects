@@ -32,12 +32,12 @@ Flask 서버와 SQL 데이터 모델로 구현했습니다.
 
 ```mermaid
 flowchart TD
-    B[브라우저<br/>Jinja2 템플릿 + static JS] -->|폼 제출 / fetch JSON| F[Flask · app.py]
-    F --> R[페이지 라우트<br/>/ · /main · /battle · /pc · /shop · /pokedex]
-    F --> A[API 라우트<br/>/api/battle/action · buy_item · swap_pokemon]
-    R --> Q[execute_query · get_db<br/>PyMySQL 컨텍스트 매니저]
+    B["브라우저<br>Jinja2 템플릿 + static JS"] -->|"폼 제출 / fetch JSON"| F["Flask · app.py"]
+    F --> R["페이지 라우트<br>/ · /main · /battle · /pc · /shop · /pokedex"]
+    F --> A["API 라우트<br>/api/battle/action · buy_item · swap_pokemon"]
+    R --> Q["execute_query · get_db<br>PyMySQL 컨텍스트 매니저"]
     A --> Q
-    Q --> DB[(MariaDB · pokemon_db<br/>users · my_pokemon · pokemon_full_info<br/>items · inventory · encounters · locations<br/>moves · pokemon_moves · pokedex_progress)]
+    Q --> DB[("MariaDB · pokemon_db<br>users · my_pokemon · pokemon_full_info<br>items · inventory · encounters · locations<br>moves · pokemon_moves · pokedex_progress")]
 ```
 
 ## 기술 스택

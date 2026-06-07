@@ -35,14 +35,14 @@ DAY 1 벙커 홈 — 배고픔·목마름·정신력·에너지 스탯 관리, �
 
 ```mermaid
 flowchart TD
-    M[main.py · Game<br/>메인 루프 / 상태 머신] --> C[config.py · 화면·색상·테마·상수]
-    M --> P[player.py · 플레이어 스탯 모델]
-    M --> S[simulation.py · 일자 진행 / 스탯 변화]
-    M --> U[ui.py · 렌더링 · EffectManager · 파티클]
-    M --> G[minigames.py · IntroRoulette / OutdoorMinigame]
-    M --> AC[actions.py · 행동 처리]
-    M --> SND[SoundManager · 상태별 BGM / 효과음]
-    SND -.-> AS[(assets · sounds/ · survival_font.ttf)]
+    M["main.py · Game<br>메인 루프 / 상태 머신"] --> C["config.py · 화면·색상·테마·상수"]
+    M --> P["player.py · 플레이어 스탯 모델"]
+    M --> S["simulation.py · 일자 진행 / 스탯 변화"]
+    M --> U["ui.py · 렌더링 · EffectManager · 파티클"]
+    M --> G["minigames.py · IntroRoulette / OutdoorMinigame"]
+    M --> AC["actions.py · 행동 처리"]
+    M --> SND["SoundManager · 상태별 BGM / 효과음"]
+    SND -.-> AS[("assets · sounds/ · survival_font.ttf")]
 ```
 
 ## 기술 스택

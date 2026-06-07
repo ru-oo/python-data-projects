@@ -25,13 +25,13 @@
 
 ```mermaid
 flowchart TD
-    A[분할된 원천 CSV들] --> B[병합 · 전처리<br/>merge_energy_data.py]
-    B --> C[(energy_data_merged_kor.csv)]
-    C --> D[군집 분석 · cluster_analysis.py]
-    D --> E[6개 발전 비중 추출 + StandardScaler]
-    E --> F[PCA · 95% 분산]
-    F --> G[KMeans + Elbow / Silhouette]
-    G --> H[시각화<br/>elbow · cluster_profiles · pca_clusters]
+    A["분할된 원천 CSV들"] --> B["병합 · 전처리<br>merge_energy_data.py"]
+    B --> C[("energy_data_merged_kor.csv")]
+    C --> D["군집 분석 · cluster_analysis.py"]
+    D --> E["6개 발전 비중 추출 + StandardScaler"]
+    E --> F["PCA · 95% 분산"]
+    F --> G["KMeans + Elbow / Silhouette"]
+    G --> H["시각화<br>elbow · cluster_profiles · pca_clusters"]
 ```
 
 ## 사용 특성 (발전 믹스 비중)
