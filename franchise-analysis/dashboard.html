@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>프랜차이즈 시장 분석 리포트</title>
+    <script src="https://cdn.jsdelivr.net/npm/@stlite/mountable@0.50.0/build/stlite.js"></script>
+    <style>
+        body { margin: 0; background-color: #0e1117; color: white; }
+        .loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0e1117; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 9999;
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        .loader {
+            border: 4px solid #f3f3f3; border-top: 4px solid #FFD700; 
+            border-radius: 50%; width: 50px; height: 50px; 
+            animation: spin 1s linear infinite; margin-bottom: 20px;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .loading-text { color: #ccc; font-size: 1.2rem; }
+    </style>
+</head>
+<body>
+    <div id="root">
+        <div class="loading-screen">
+            <div class="loader"></div>
+            <div class="loading-text">프랜차이즈 분석 데이터를 로딩 중입니다...</div>
+        </div>
+    </div>
+
+    <script>
+        stlite.mount({
+            requirements: ["streamlit", "pandas", "pydeck", "plotly", "scikit-learn", "pyproj"],
+            entrypoint: "app.py",
+            files: {
+                "app.py": `
+import streamlit as st
+import pandas as pd
+import pydeck as pdk
+import plotly.express as px
+import plotly.graph_objects as go
+import numpy as np
+from pyproj import Transformer
+from sklearn.preprocessing import MinMaxScaler
+from sklearn.linear_model import LinearRegression
+
+# -----------------------------------------------------------------------------
+# 1. 페이지 및 테마 설정 (발표용 디자인)
+# -----------------------------------------------------------------------------
+st.set_page_config(
+    page_title="프랜차이즈 시장 분석 리포트",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# [CSS] 발표용 스타일링 (프랜차이즈 테마: Navy & Gold)
+st.markdown("""
+    <style>
+    /* 전체 배경 및 폰트 */
+    .stApp {
+        background-color: #0e1117;
+        color: #fafafa;
+        font-family: 'Pretendard', 'Malgun Gothic', sans-serif;
+    }
+    
+    /* 헤더 스타일 */
+    h1 { color: #FFFFFF; border-bottom: 2px solid #FFD700; padding-bottom: 15px; font-weight: 800; }
+    h2 { color: #FFD700; margin-top: 40px; font-weight: 700; }
+    h3 { color: #A0C4FF; margin-top: 20px; font-weight: 600; }
+    
+    /* 카드 디자인 (4분면 등) */
+    .quad_card { 
+        padding: 25px; border-radius: 15px; color: white; min-height: 240px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5); display: flex; flex-direction: column; 
+        margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.1);
+        transition: transform 0.2s;
+    }
+    .quad_card:hover { transform: translateY(-5px); }
+    
+    .q_blue { background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); }   /* 기회 */
+    .q_green { background: linear-gradient(135deg, #064e3b 0%, #10b981 100%); }  /* 선도 */
+    .q_red { background: linear-gradient(135deg, #7f1d1d 0%, #ef4444 100%); }    /* 과열 */
+    .q_gray { background: linear-gradient(135deg, #374151 0%, #6b7280 100%); }   /* 열위 */
+    
+    .card-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 15px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px; }
+    .card-list { font-size: 1.2rem; font-weight: 700; margin-bottom: 15px; line-height: 1.4; }
+    .card-desc { font-size: 1rem; line-height: 1.6; opacity: 0.9; }
+
+    /* 메트릭 카드 커스텀 */
+    div[data-testid="stMetric"] {
+        background-color: #1f2937;
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #374151;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    }
+    div[data-testid="stMetricLabel"] { font-size: 1rem !important; color: #9ca3af !important; }
+    div[data-testid="stMetricValue"] { font-size: 1.8rem !important; color: #FFD700 !important; font-weight: 700 !important; }
+
+    /* 탭 스타일 강화 */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: transparent;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 60px;
+        white-space: pre-wrap;
+        background-color: #1f2937;
+        border-radius: 10px 10px 0 0;
+        color: #9ca3af;
+        border: 1px solid #374151;
+        font-weight: 600;
+        font-size: 1.1rem;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #FFD700 !important;
+        color: #000000 !important;
+        border-color: #FFD700 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# -----------------------------------------------------------------------------
+# 2. 데이터 로드 및 전처리
+# -----------------------------------------------------------------------------
+# (샘플 데이터 생성 로직 포함 - 파일 업로드 없을 시 자동 사용)
+@st.cache_data
+def load_data(uploaded_file, file_type='analysis'):
+    if uploaded_file is not None:
+        df = pd.read_csv(uploaded_file)
+    else:
+        try:
+            filename = 'franchise_analysis_corrected.csv' if file_type == 'analysis' else 'merged_result.csv'
+            df = pd.read_csv(filename)
+        except:
+            return pd.DataFrame()
+            
+    if not df.empty and file_type == 'analysis':
+        df['영업매장수_safe'] = df['영업매장수'].replace(0, 1)
+        
+    if not df.empty and file_type == 'coord':
+        df['허가날짜'] = pd.to_datetime(df['허가날짜'], errors='coerce')
+        df['폐업날짜'] = pd.to_datetime(df['폐업날짜'], errors='coerce')
+        
+        def parse_coord(c):
+            try:
+                parts = str(c).replace('"', '').split(',')
+                return float(parts[0]), float(parts[1])
+            except:
+                return None
+        
+        # 좌표 변환 (EPSG:5174 -> EPSG:4326)
+        try:
+            coords = df['좌표'].dropna().apply(parse_coord)
+            valid_coords = [c for c in coords if c is not None]
+            if valid_coords:
+                transformer = Transformer.from_crs("epsg:5174", "epsg:4326", always_xy=True)
+                lon, lat = transformer.transform([c[0] for c in valid_coords], [c[1] for c in valid_coords])
+                df = df.dropna(subset=['좌표']).copy()
+                if len(df) == len(lon):
+                    df['lon'] = lon
+                    df['lat'] = lat
+        except:
+            pass
+            
+    return df
+
+# 전처리 함수들 (기존 로직 유지)
+def preprocess_for_tab1(df):
+    df_stat = df.copy()
+    national_income_avg = df_stat['1인당지역총소득'].mean()
+    df_stat['Category_Total_Store'] = df_stat.groupby(['연도', '시도', '업태 구분명'])['영업매장수'].transform('sum')
+    df_stat['Category_Density'] = (df_stat['Category_Total_Store'] / df_stat['전체_총인구수']) * 10000
+    df_stat['Real_Market_Share_Pct'] = (df_stat['영업매장수'] / df_stat['Category_Total_Store']) * 100
+    df_stat['Income_Index'] = df_stat['1인당지역총소득'] / national_income_avg
+    df_stat['Growth_Rate'] = (df_stat['신규매장수'] - df_stat['폐업매장수']) / df_stat['영업매장수_safe']
+    growth_factor = (1 + df_stat['Growth_Rate'] * 3).apply(lambda x: max(x, 0.1))
+    df_stat['Final_Score'] = (df_stat['Category_Density'] * df_stat['Real_Market_Share_Pct'] * df_stat['Income_Index'] * growth_factor)
+    return df_stat, national_income_avg
+
+def preprocess_for_tab2(df):
+    df_app = df.copy()
+    df_app['Category_Total'] = df_app.groupby(['연도', '시도', '업태 구분명'])['영업매장수'].transform('sum')
+    df_app['Category_Density'] = (df_app['Category_Total'] / df_app['전체_총인구수']) * 10000
+    df_app['Real_Market_Share_Pct'] = (df_app['영업매장수'] / df_app['Category_Total']) * 100
+    avg_income = df_app.groupby('연도')['1인당지역총소득'].transform('mean')
+    df_app['Income_Index'] = df_app['1인당지역총소득'] / avg_income
+    df_app['Growth_Rate'] = (df_app['신규매장수'] - df_app['폐업매장수']) / df_app['영업매장수_safe']
+    growth_factor = (1 + df_app['Growth_Rate'] * 3).apply(lambda x: max(x, 0.1))
+    df_app['Final_Score'] = (df_app['Category_Density'] * df_app['Real_Market_Share_Pct'] * df_app['Income_Index'] * growth_factor)
+    region_total = df_app.groupby(['연도', '시도'])['Final_Score'].transform('sum').replace(0, 1)
+    df_app['Influence_Score'] = (df_app['Final_Score'] / region_total) * 100
+    df_app['청년층(2030)'] = (df_app['남자_20~39세'] + df_app['여자_20~39세']) / df_app['전체_총인구수']
+    df_app['중장년층(4050)'] = (df_app['남자_40~59세'] + df_app['여자_40~59세']) / df_app['전체_총인구수']
+    df_app['노년층(60+)'] = (df_app['남자_60세이상'] + df_app['여자_60세이상']) / df_app['전체_총인구수']
+    df_app.rename(columns={'1인가구_40세이하_비율': '청년1인가구', '1인당지역총소득': '지역소득'}, inplace=True)
+    numeric_cols = df_app.select_dtypes(include=[np.number]).columns
+    df_app[numeric_cols] = df_app[numeric_cols].fillna(0)
+    return df_app
+
+def preprocess_for_tab3(df):
+    df_t3 = df.copy()
+    if '비율_남자_20~39세' not in df_t3.columns:
+        df_t3['2030대_비율'] = (df_t3['남자_20~39세'] + df_t3['여자_20~39세']) / df_t3['전체_총인구수']
+        df_t3['405010대_비율'] = (df_t3['남자_40~59세'] + df_t3['여자_40~59세'] + df_t3['남자_0~19세'] + df_t3['여자_0~19세']) / df_t3['전체_총인구수']
+        df_t3['60대이후_비율'] = (df_t3['남자_60세이상'] + df_t3['여자_60세이상']) / df_t3['전체_총인구수']
+    else:
+        df_t3['2030대_비율'] = df_t3['비율_남자_20~39세'] + df_t3['비율_여자_20~39세']
+        df_t3['405010대_비율'] = df_t3[['비율_남자_40~59세', '비율_여자_40~59세', '비율_남자_0~19세', '비율_여자_0~19세']].sum(axis=1)
+        df_t3['60대이후_비율'] = df_t3.get('비율_남자_60세이상', 0) + df_t3.get('비율_여자_60세이상', 0)
+    df_t3['폐업률'] = (df_t3['폐업매장수'] / df_t3['영업매장수'].replace(0, 1)) * 100
+    df_t3['영업매장수_safe'] = df_t3['영업매장수'].replace(0, 1)
+    df_t3['Category_Total_Store'] = df_t3.groupby(['연도', '시도', '업태 구분명'])['영업매장수'].transform('sum')
+    df_t3['Category_Density'] = (df_t3['Category_Total_Store'] / df_t3['전체_총인구수']) * 10000
+    df_t3['Real_Market_Share_Pct'] = (df_t3['영업매장수'] / df_t3['Category_Total_Store']) * 100
+    df_t3['Income_Index'] = df_t3['1인당지역총소득'] / df_t3['1인당지역총소득'].mean()
+    df_t3['Growth_Rate'] = (df_t3['신규매장수'] - df_t3['폐업매장수']) / df_t3['영업매장수_safe']
+    growth_factor = (1 + df_t3['Growth_Rate'] * 3).apply(lambda x: max(x, 0.1))
+    df_t3['Final_Score_Value'] = df_t3['Category_Density'] * df_t3['Real_Market_Share_Pct'] * df_t3['Income_Index'] * growth_factor
+    analysis_cols = ['2030대_비율', '405010대_비율', '60대이후_비율', '1인당지역총소득', '1인가구_40세이하_비율', '폐업률']
+    valid_cols = [c for c in analysis_cols if c in df_t3.columns]
+    if valid_cols:
+        temp_scaler = MinMaxScaler()
+        norm_data = pd.DataFrame(temp_scaler.fit_transform(df_t3[valid_cols].fillna(0)), columns=valid_cols)
+        if '폐업률' in norm_data.columns:
+            norm_data['폐업률'] = 1.0 - norm_data['폐업률'] 
+        df_t3['종합_잠재력_지수'] = norm_data.mean(axis=1) * 100
+    else:
+        df_t3['종합_잠재력_지수'] = 0
+    return df_t3
+
+# -----------------------------------------------------------------------------
+# 3. 사이드바 및 데이터 로딩
+# -----------------------------------------------------------------------------
+st.sidebar.title("🎛️ 분석 제어 패널")
+st.sidebar.markdown("데이터 파일을 업로드하면 정밀 분석이 시작됩니다.")
+
+uploaded_analysis = st.sidebar.file_uploader("📊 분석 데이터 (CSV)", type=['csv'])
+uploaded_merged = st.sidebar.file_uploader("🗺️ 좌표 데이터 (CSV)", type=['csv'])
+
+# 데이터 로드
+raw_df = load_data(uploaded_analysis, 'analysis')
+coord_df = load_data(uploaded_merged, 'coord')
+
+if raw_df.empty:
+    st.error("데이터를 로드할 수 없습니다. CSV 파일을 확인해주세요.")
+    st.stop()
+
+# -----------------------------------------------------------------------------
+# 4. 필터링 및 옵션
+# -----------------------------------------------------------------------------
+st.sidebar.markdown("---")
+st.sidebar.subheader("📌 조회 조건")
+years = sorted(raw_df['연도'].unique(), reverse=True)
+selected_year = st.sidebar.selectbox("연도 선택", years, index=0)
+
+categories = sorted(raw_df['업태 구분명'].unique())
+selected_category = st.sidebar.selectbox("업태 선택", ["전체 (통합 1위)"] + categories)
+
+# -----------------------------------------------------------------------------
+# 5. 메인 대시보드 (슬라이드 다운 구조)
+# -----------------------------------------------------------------------------
+
+st.title(f"🚀 {selected_year}년 프랜차이즈 시장 분석 리포트")
+st.markdown(f"**선택 업태:** {selected_category} | **분석 기준:** 가맹점 수, 매출액, 폐업률 종합 분석")
+st.markdown("---")
+
+# 탭 구성 (요청대로 유지하되, 내부 콘텐츠를 슬라이드처럼 구성)
+tab1, tab2, tab3 = st.tabs([
+    "📊 지배력 & 밀도 분석", 
+    "🎤 성과 요인 심층 분석", 
+    "🎯 시장 기회 매트릭스"
+])
+
+# [TAB 1] 지배력 & 밀도 분석
+with tab1:
+    st.header("1. 지역별 시장 지배력 분석")
+    st.markdown("이 섹션에서는 **어디에 매장이 집중**되어 있고, **어떤 브랜드가 시장을 장악**하고 있는지 분석합니다.")
+    
+    # 데이터 준비
+    df_all_stat, income_avg_val = preprocess_for_tab1(raw_df)
+    df_year = df_all_stat[df_all_stat['연도'] == selected_year].copy()
+    if selected_category != "전체 (통합 1위)":
+        df_year = df_year[df_year['업태 구분명'] == selected_category].copy()
+        
+    region_total_score = df_year.groupby('시도')['Final_Score'].transform('sum')
+    df_year['Influence_Share_Pct'] = (df_year['Final_Score'] / region_total_score) * 100
+    top_market = df_year.sort_values(by=['Real_Market_Share_Pct'], ascending=False).drop_duplicates('시도')
+    top_influence = df_year.sort_values(by=['Influence_Share_Pct'], ascending=False).drop_duplicates('시도')
+
+    # 지도 시각화
+    st.subheader("📍 매장 밀집도 히트맵")
+    
+    target_date = pd.Timestamp(f"{selected_year}-12-31")
+    map_data = pd.DataFrame()
+    
+    if not coord_df.empty and 'lat' in coord_df.columns:
+        map_data = coord_df[
+            (coord_df['허가날짜'] <= target_date) & 
+            ((coord_df['폐업날짜'] > target_date) | (coord_df['폐업날짜'].isnull()))
+        ].copy()
+        if selected_category != "전체 (통합 1위)":
+            map_data = map_data[map_data['업태 구분명'] == selected_category]
+            
+    if not map_data.empty:
+        # 지도 옵션
+        regions_opt = {"전국": [36.0, 127.5, 6], "서울": [37.56, 126.97, 10], "경기": [37.41, 127.51, 9], "부산": [35.17, 129.07, 10]}
+        sel_reg = st.selectbox("지도 중심점", list(regions_opt.keys()), index=0)
+        view_st = pdk.ViewState(latitude=regions_opt[sel_reg][0], longitude=regions_opt[sel_reg][1], zoom=regions_opt[sel_reg][2], pitch=45)
+        
+        layer = pdk.Layer(
+            "HexagonLayer",
+            data=map_data,
+            get_position=["lon", "lat"],
+            radius=400,
+            elevation_scale=30,
+            elevation_range=[0, 3000],
+            extruded=True,
+            pickable=True,
+            auto_highlight=True,
+            color_range=[[255,255,178], [254,217,118], [254,178,76], [253,141,60], [240,59,32], [189,0,38]]
+        )
+        st.pydeck_chart(pdk.Deck(layers=[layer], initial_view_state=view_st, tooltip={"text": "밀집도"}))
+    else:
+        st.info("지도에 표시할 데이터가 충분하지 않습니다.")
+
+    st.divider()
+
+    # 핵심 지표 (슬라이드 2)
+    st.subheader("📈 4대 핵심 지표 분석")
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.caption("① 업태 밀도")
+        fig1 = px.bar(top_influence, x='시도', y='Category_Density', color='Category_Density', color_continuous_scale='YlOrBr')
+        fig1.update_layout(showlegend=False, coloraxis_showscale=False, height=250, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
+        st.plotly_chart(fig1, use_container_width=True)
+    with c2:
+        st.caption("② 시장 규모 (점유율)")
+        fig2 = px.bar(top_market, x='시도', y='Real_Market_Share_Pct', color='브랜드')
+        fig2.update_layout(showlegend=False, height=250, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
+        st.plotly_chart(fig2, use_container_width=True)
+    with c3:
+        st.caption("③ 지역 구매력 (소득)")
+        fig3 = px.bar(top_influence, x='시도', y='1인당지역총소득', color='1인당지역총소득', color_continuous_scale='Greens')
+        fig3.add_hline(y=income_avg_val, line_dash="dash", line_color="#EF4444")
+        fig3.update_layout(showlegend=False, coloraxis_showscale=False, height=250, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
+        st.plotly_chart(fig3, use_container_width=True)
+    with c4:
+        st.caption("④ 성장률")
+        colors = ['#3B82F6' if x >= 0 else '#EF4444' for x in top_influence['Growth_Rate']]
+        fig4 = go.Figure(go.Bar(x=top_influence['시도'], y=top_influence['Growth_Rate'], marker_color=colors))
+        fig4.update_layout(showlegend=False, height=250, margin=dict(l=0,r=0,t=0,b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'))
+        st.plotly_chart(fig4, use_container_width=True)
+
+    st.markdown("### 🏆 지역별 영향력 1위 브랜드")
+    top_influence['Label'] = top_influence.apply(lambda x: f"<b>{x['브랜드']}</b><br>{x['Influence_Share_Pct']:.1f}%", axis=1)
+    fig_main = px.bar(top_influence, x='시도', y='Influence_Share_Pct', color='브랜드', text='Label')
+    fig_main.update_traces(textposition='outside', textfont_size=14, cliponaxis=False)
+    fig_main.update_layout(
+        height=500, margin=dict(t=50, b=50), 
+        paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+        font=dict(color='white', size=14),
+        xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.1)')
+    )
+    st.plotly_chart(fig_main, use_container_width=True)
+
+# [TAB 2] 성과 요인 심층 분석
+with tab2:
+    st.header("2. 성과 요인 심층 분석 (Why?)")
+    
+    # 브랜드 선택 UI
+    target_brands = []
+    if selected_category != "전체 (통합 1위)":
+        temp_df = raw_df[(raw_df['연도'] == selected_year) & (raw_df['업태 구분명'] == selected_category)]
+        target_brands = temp_df.groupby('브랜드')['영업매장수'].sum().sort_values(ascending=False).head(20).index.tolist()
+    
+    sel_brand = st.selectbox("분석할 브랜드를 선택하세요", target_brands if target_brands else ["데이터 없음"])
+    
+    if sel_brand != "데이터 없음":
+        df_all_app = preprocess_for_tab2(raw_df)
+        df_target = df_all_app[(df_all_app['연도'] == selected_year) & (df_all_app['업태 구분명'] == selected_category)].copy()
+        df_brand = df_target[df_target['브랜드'] == sel_brand].copy()
+
+        if not df_brand.empty:
+            # 상관관계 분석
+            analysis_cols = ['청년층(2030)', '중장년층(4050)', '노년층(60+)', '청년1인가구', '지역소득']
+            corr = df_brand[analysis_cols + ['Influence_Score']].corr()['Influence_Score'].drop('Influence_Score').fillna(0)
+            strongest = corr.abs().idxmax()
+            
+            # 레이아웃
+            col1, col2 = st.columns([1.2, 0.8])
+            with col1:
+                st.subheader("🗺️ 지역별 점유율 현황")
+                fig_tree = px.treemap(
+                    df_brand, path=['시도'], values='Influence_Score', 
+                    color='Influence_Score', color_continuous_scale='Reds'
+                )
+                fig_tree.update_layout(margin=dict(t=0,l=0,r=0,b=0), height=400, paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white', size=15))
+                st.plotly_chart(fig_tree, use_container_width=True)
+            
+            with col2:
+                st.subheader("💡 핵심 성공 요인")
+                st.info(f"데이터 분석 결과, **[{sel_brand}]**의 성과를 결정짓는 가장 중요한 변수는 **'{strongest}'** 입니다.")
+                
+                # 레이더 차트 (1등 지역 vs 평균)
+                top_reg = df_brand.sort_values(by='Influence_Score', ascending=False).iloc[0]['시도']
+                scaler = MinMaxScaler()
+                vals = scaler.fit_transform(df_brand[analysis_cols].fillna(0))
+                df_scaled = pd.DataFrame(vals, columns=analysis_cols, index=df_brand['시도'])
+                
+                vals_top = df_scaled.loc[top_reg].tolist(); vals_top += vals_top[:1]
+                vals_avg = df_scaled.mean().tolist(); vals_avg += vals_avg[:1]
+                cats = analysis_cols + [analysis_cols[0]]
+                
+                fig_radar = go.Figure()
+                fig_radar.add_trace(go.Scatterpolar(r=vals_avg, theta=cats, fill='toself', name='전국 평균', line_color='gray'))
+                fig_radar.add_trace(go.Scatterpolar(r=vals_top, theta=cats, fill='toself', name=f'1등({top_reg})', line_color='#FFD700'))
+                fig_radar.update_layout(
+                    polar=dict(radialaxis=dict(visible=True, showticklabels=False), bgcolor='rgba(0,0,0,0)'),
+                    paper_bgcolor='rgba(0,0,0,0)', font=dict(color='white'),
+                    legend=dict(orientation="h", y=-0.1),
+                    margin=dict(t=20, b=20)
+                )
+                st.plotly_chart(fig_radar, use_container_width=True)
+
+            st.divider()
+            
+            # 검증 차트
+            st.subheader(f"📊 검증: {strongest} vs 점유율 상관관계")
+            reg_df = df_brand[[strongest, 'Influence_Score', '시도']].dropna()
+            if len(reg_df) > 1:
+                fig_s = px.scatter(reg_df, x=strongest, y='Influence_Score', text='시도', trendline="ols")
+                fig_s.update_traces(marker=dict(size=12, color='#FFD700'), textposition='top center')
+                fig_s.update_layout(
+                    paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', font=dict(color='white'),
+                    xaxis=dict(showgrid=True, gridcolor='#333'), yaxis=dict(showgrid=True, gridcolor='#333'),
+                    height=400
+                )
+                st.plotly_chart(fig_s, use_container_width=True)
+
+# [TAB 3] 시장 기회 매트릭스
+with tab3:
+    st.header("3. 시장 기회 매트릭스 (Action Plan)")
+    st.markdown("브랜드의 **현재 위상(Y축)**과 지역의 **잠재력(X축)**을 비교하여 진출 전략을 수립합니다.")
+    
+    df_stats = preprocess_for_tab3(raw_df)
+    
+    # 옵션
+    col1, col2 = st.columns(2)
+    with col1:
+        brands_t3 = sorted(df_stats['브랜드'].unique())
+        sel_brand_t3 = st.selectbox("전략 수립 대상 브랜드", brands_t3)
+    with col2:
+        feats = {
+            "종합 잠재력 (추천)": "종합_잠재력_지수",
+            "2030 인구 비중": "2030대_비율",
+            "소득 수준": "1인당지역총소득"
+        }
+        sel_feat_key = st.selectbox("X축 기준(잠재력 지표)", list(feats.keys()))
+        sel_feat = feats[sel_feat_key]
+
+    target_yr = df_stats['연도'].max()
+    df_anl = df_stats[(df_stats['연도'] == target_yr) & (df_stats['브랜드'] == sel_brand_t3)].copy()
+
+    if not df_anl.empty:
+        scaler = MinMaxScaler(feature_range=(0, 100))
+        df_anl['X_Score'] = scaler.fit_transform(df_anl[[sel_feat]])
+        df_anl['Y_Score'] = scaler.fit_transform(df_anl[['Final_Score_Value']])
+        
+        def get_color(row):
+            if row['X_Score'] >= 50 and row['Y_Score'] >= 50: return '#10b981' # 선도
+            elif row['X_Score'] >= 50 and row['Y_Score'] < 50: return '#3b82f6' # 기회
+            elif row['X_Score'] < 50 and row['Y_Score'] >= 50: return '#ef4444' # 과열
+            else: return '#6b7280' # 열위
+        
+        df_anl['Color'] = df_anl.apply(get_color, axis=1)
+
+        # 4분면 차트
+        fig_q = px.scatter(df_anl, x='X_Score', y='Y_Score', text='시도', color='Color', color_discrete_map="identity")
+        
+        # 배경 장식
+        fig_q.add_vline(x=50, line_dash="dash", line_color="white", opacity=0.3)
+        fig_q.add_hline(y=50, line_dash="dash", line_color="white", opacity=0.3)
+        fig_q.add_shape(type="rect", x0=50, y0=-10, x1=110, y1=50, fillcolor="rgba(59, 130, 246, 0.2)", layer="below", line_width=0)
+        
+        # 라벨
+        fig_q.add_annotation(x=105, y=105, text="⭐ 선도 시장", showarrow=False, font=dict(size=15, color="#10b981", weight="bold"))
+        fig_q.add_annotation(x=105, y=-5, text="💎 기회 시장 (Blue Ocean)", showarrow=False, font=dict(size=15, color="#3b82f6", weight="bold"))
+        fig_q.add_annotation(x=-5, y=105, text="🔥 과열 시장 (Red Ocean)", showarrow=False, font=dict(size=15, color="#ef4444", weight="bold"))
+        
+        fig_q.update_traces(marker=dict(size=20, line=dict(width=2, color='white')), textfont=dict(size=14, color='white', weight='bold'), textposition='top center')
+        fig_q.update_layout(
+            height=600, 
+            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+            font=dict(color='white'),
+            xaxis=dict(title=f"지역 잠재력 ({sel_feat_key})", range=[-10, 110], showgrid=False),
+            yaxis=dict(title="현재 브랜드 위상", range=[-10, 110], showgrid=False),
+            showlegend=False
+        )
+        st.plotly_chart(fig_q, use_container_width=True)
+
+        # 전략 카드 리포트
+        st.subheader("📋 전략 제언")
+        df_anl['Zone'] = df_anl.apply(lambda r: '선도' if r['X_Score']>=50 and r['Y_Score']>=50 else '기회' if r['X_Score']>=50 else '과열' if r['Y_Score']>=50 else '열위', axis=1)
+        
+        c1, c2, c3, c4 = st.columns(4)
+        with c1:
+            regs = df_anl[df_anl['Zone']=='기회']['시도'].tolist()
+            st.markdown(f'<div class="quad_card q_blue"><div class="card-title">💎 기회 시장</div><div class="card-list">{", ".join(regs) if regs else "-"}</div><div class="card-desc">잠재력은 높으나 아직 점유율이 낮습니다. 공격적인 출점과 마케팅이 필요합니다.</div></div>', unsafe_allow_html=True)
+        with c2:
+            regs = df_anl[df_anl['Zone']=='선도']['시도'].tolist()
+            st.markdown(f'<div class="quad_card q_green"><div class="card-title">⭐ 선도 시장</div><div class="card-list">{", ".join(regs) if regs else "-"}</div><div class="card-desc">이미 시장을 장악한 효자 지역입니다. 수익성을 극대화하고 방어 전략을 취하세요.</div></div>', unsafe_allow_html=True)
+        with c3:
+            regs = df_anl[df_anl['Zone']=='과열']['시도'].tolist()
+            st.markdown(f'<div class="quad_card q_red"><div class="card-title">🔥 과열 시장</div><div class="card-list">{", ".join(regs) if regs else "-"}</div><div class="card-desc">경쟁이 치열하거나 성장이 둔화된 곳입니다. 구조조정이나 내실 다지기가 필요합니다.</div></div>', unsafe_allow_html=True)
+        with c4:
+            regs = df_anl[df_anl['Zone']=='열위']['시도'].tolist()
+            st.markdown(f'<div class="quad_card q_gray"><div class="card-title">💤 열위 시장</div><div class="card-list">{", ".join(regs) if regs else "-"}</div><div class="card-desc">시장 매력도와 점유율이 모두 낮습니다. 철수를 고려하거나 투자를 보류하세요.</div></div>', unsafe_allow_html=True)
+
+                `,
+                "franchise_analysis_corrected.csv": `시도,업태 구분명,브랜드,영업매장수,신규매장수,폐업매장수,연도,남자_0~19세,남자_20~39세,남자_40~59세,남자_60세이상,남자_총인구수,여자_0~19세,여자_20~39세,여자_40~59세,여자_60세이상,여자_총인구수,전체_총인구수,1인가구수_40세이하,1인당지역총소득,1인가구_40세이하_비율,인구1만명당_매장수,비율_남자_0~19세,비율_남자_20~39세,비율_남자_40~59세,비율_남자_60세이상,비율_여자_0~19세,비율_여자_20~39세,비율_여자_40~59세,비율_여자_60세이상,주요4사_총매장수,시도별_주요브랜드_총합,주요4사_내_비중,인구1만명당_주요4사_매장수
+강원,치킨,BBQ,15,2,1,2024,200000,250000,180000,100000,730000,190000,240000,180000,140000,750000,1480000,36000,32000,0.02,2.0,0.13,0.16,0.12,0.06,0.12,0.16,0.12,0.09,20,50,40.0,3.3
+서울,패스트푸드,롯데리아,200,10,5,2024,800000,1500000,1600000,900000,4800000,750000,1550000,1650000,1000000,4950000,9750000,1500000,48000,30.0,2.5,0.08,0.15,0.16,0.09,0.07,0.16,0.17,0.10,200,500,40.0,3.5
+경기,패스트푸드,맘스터치,150,20,3,2024,1200000,1800000,2000000,1100000,6100000,1150000,1750000,1950000,1200000,6050000,13500000,2000000,42000,25.0,2.0,0.09,0.13,0.15,0.08,0.08,0.13,0.14,0.09,180,600,35.0,3.0
+부산,피자,도미노피자,50,5,2,2024,300000,400000,500000,300000,1600000,290000,410000,510000,350000,1700000,3300000,500000,35000,28.0,1.8,0.09,0.12,0.15,0.09,0.08,0.12,0.15,0.10,50,200,45.0,2.5
+대전,카페,스타벅스,60,8,0,2024,150000,200000,220000,100000,720000,145000,205000,225000,110000,730000,1450000,250000,36000,32.0,4.5,0.10,0.14,0.15,0.07,0.10,0.14,0.16,0.08,80,300,50.0,5.0
+`,
+                "merged_result.csv": `상호명,업태 구분명,영업중/폐업,허가날짜,폐업날짜,좌표,소재지
+롯데리아 서울역점,패스트푸드,영업,2010-03-11,,"197229.761422932, 450418.159244379","서울특별시 중구 봉래동"
+맘스터치 부산서면점,패스트푸드,영업,2015-02-18,,"389923.084604865, 194413.991905166","부산광역시 부산진구 부전동"
+스타벅스 강남점,카페,영업,2018-05-20,,"202588, 444383","서울특별시 강남구 역삼동"
+이디야 대구동성로점,카페,폐업,2012-08-15,2023-01-10,"343835, 264251","대구광역시 중구 동성로"
+`
+            }
+        }, document.getElementById("root"))
+    </script>
+</body>
+</html>
