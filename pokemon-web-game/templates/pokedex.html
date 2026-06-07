@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}포켓몬 DS - 도감{% endblock %}
+
+{% block top_screen %}
+<div class="pokedex-screen">
+    <div class="pokedex-header">
+        <h2>📖 포켓몬 도감</h2>
+        <div class="pokedex-stats">
+            <div class="stat-box">
+                <span class="stat-label">포획</span>
+                <span class="stat-value">{{ caught_count }}/{{ total_count }}</span>
+            </div>
+            <div class="stat-box">
+                <span class="stat-label">목격</span>
+                <span class="stat-value">{{ seen_count }}/{{ total_count }}</span>
+            </div>
+        </div>
+    </div>
+    
+    <div id="pokemonDetail" class="pokemon-detail">
+        <p class="select-prompt">포켓몬을 선택하세요</p>
+    </div>
+</div>
+{% endblock %}
+
+{% block bottom_screen %}
+<div class="pokedex-list-screen">
+    <div class="pictochat-header">
+        <h3>포켓몬 목록</h3>
+        <a href="/main" class="btn-back-main">← 메인으로</a>
+    </div>
+    
+    <div class="pokedex-grid">
+        {% for pokemon in pokemon_list %}
+        <div class="pokedex-entry {% if not pokemon.is_seen %}unseen{% endif %}" 
+             onclick="showPokemonDetail({{ pokemon.id }}, {{ pokemon.is_caught }}, {{ pokemon.is_seen }})">
+            <div class="entry-number">#{{ '%03d'|format(pokemon.id) }}</div>
+            {% if pokemon.is_seen %}
+                <img src="{{ pokemon.image_url }}" alt="{{ pokemon.name_ko }}" class="entry-sprite">
+                <div class="entry-name">{{ pokemon.name_ko }}</div>
+                {% if pokemon.is_caught %}
+                <div class="caught-icon">✓</div>
+                {% endif %}
+            {% else %}
+                <div class="entry-sprite unknown">❓</div>
+                <div class="entry-name">???</div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<script>
+const pokemonData = {{ pokemon_list|tojson }};
+
+function showPokemonDetail(pokemonId, isCaught, isSeen) {
+    const pokemon = pokemonData.find(p => p.id === pokemonId);
+    
+    if (!pokemon || !isSeen) {
+        return;
+    }
+    
+    const detailDiv = document.getElementById('pokemonDetail');
+    
+    let html = `
+        <div class="detail-content">
+            <div class="detail-header">
+                <h3>#${String(pokemon.id).padStart(3, '0')} ${pokemon.name_ko}</h3>
+                ${isCaught ? '<span class="caught-badge">✓ 포획완료</span>' : '<span class="seen-badge">👁️ 목격</span>'}
+            </div>
+            
+            <img src="${pokemon.image_url}" alt="${pokemon.name_ko}" class="detail-sprite">
+            
+            <div class="type-badges-large">
+                <span class="type-badge type-${pokemon.type1}">${pokemon.type1}</span>
+                ${pokemon.type2 ? `<span class="type-badge type-${pokemon.type2}">${pokemon.type2}</span>` : ''}
+            </div>
+            
+            ${isCaught ? `
+            <div class="detail-stats">
+                <p class="pokemon-description">${pokemon.description || '설명 없음'}</p>
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <span class="stat-name">HP</span>
+                        <span class="stat-bar">
+                            <span class="stat-fill" style="width: ${pokemon.hp / 2}%"></span>
+                        </span>
+                        <span class="stat-number">${pokemon.hp}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-name">공격</span>
+                        <span class="stat-bar">
+                            <span class="stat-fill" style="width: ${pokemon.attack / 2}%"></span>
+                        </span>
+                        <span class="stat-number">${pokemon.attack}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-name">방어</span>
+                        <span class="stat-bar">
+                            <span class="stat-fill" style="width: ${pokemon.defense / 2}%"></span>
+                        </span>
+                        <span class="stat-number">${pokemon.defense}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-name">특공</span>
+                        <span class="stat-bar">
+                            <span class="stat-fill" style="width: ${pokemon.sp_attack / 2}%"></span>
+                        </span>
+                        <span class="stat-number">${pokemon.sp_attack}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-name">특방</span>
+                        <span class="stat-bar">
+                            <span class="stat-fill" style="width: ${pokemon.sp_defense / 2}%"></span>
+                        </span>
+                        <span class="stat-number">${pokemon.sp_defense}</span>
+                    </div>
+                    <div class="stat-item">
+                        <span class="stat-name">스피드</span>
+                        <span class="stat-bar">
+                            <span class="stat-fill" style="width: ${pokemon.speed / 2}%"></span>
+                        </span>
+                        <span class="stat-number">${pokemon.speed}</span>
+                    </div>
+                </div>
+            </div>
+            ` : `
+            <p class="catch-prompt">이 포켓몬을 잡아서 더 많은 정보를 확인하세요!</p>
+            `}
+        </div>
+    `;
+    
+    detailDiv.innerHTML = html;
+}
+</script>
+{% endblock %}

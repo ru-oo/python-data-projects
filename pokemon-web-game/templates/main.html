@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}포켓몬 DS - 메인 메뉴{% endblock %}
+
+{% block top_screen %}
+<div class="party-display">
+    <div class="trainer-info">
+        <h2>{{ user.username }}</h2>
+        <div class="trainer-stats">
+            <div class="stat-item">
+                <span class="stat-label">💰</span>
+                <span class="stat-value">{{ user.money }}원</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">🏔️</span>
+                <span class="stat-value">{{ user.current_floor }}층</span>
+            </div>
+        </div>
+    </div>
+    
+    <div class="party-pokemon">
+        <h3>파티 포켓몬</h3>
+        <div class="party-grid">
+            {% for pokemon in party %}
+            <div class="party-member">
+                <img src="{{ pokemon.image_url }}" alt="{{ pokemon.name_ko }}" class="pokemon-sprite">
+                <div class="pokemon-details">
+                    <h4>{{ pokemon.nickname or pokemon.name_ko }}</h4>
+                    <p class="pokemon-level">Lv. {{ pokemon.level }}</p>
+                    <div class="hp-bar-container">
+                        <div class="hp-bar" style="width: {{ (pokemon.current_hp / pokemon.max_hp * 100)|int }}%"></div>
+                    </div>
+                    <p class="hp-text">{{ pokemon.current_hp }}/{{ pokemon.max_hp }}</p>
+                </div>
+            </div>
+            {% endfor %}
+            {% if party|length == 0 %}
+            <p class="empty-party">파티에 포켓몬이 없습니다!</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block bottom_screen %}
+<div class="main-menu pictochat-style">
+    <div class="pictochat-header">
+        <div class="time-display">{{ "now"|timestamp }}</div>
+        <div class="status-icons">
+            <span class="wifi-icon">📶</span>
+            <span class="battery-icon">🔋</span>
+        </div>
+    </div>
+    
+    <div class="pictochat-content">
+        <div class="message-bubble system">
+            <p>무엇을 하시겠습니까?</p>
+        </div>
+    </div>
+    
+    <div class="menu-grid">
+        <a href="/battle" class="menu-card">
+            <div class="card-icon">⚔️</div>
+            <div class="card-title">배틀</div>
+            <div class="card-desc">야생 포켓몬과 싸우기</div>
+        </a>
+        
+        <a href="/pc" class="menu-card">
+            <div class="card-icon">💻</div>
+            <div class="card-title">PC</div>
+            <div class="card-desc">포켓몬 관리</div>
+        </a>
+        
+        <a href="/shop" class="menu-card">
+            <div class="card-icon">🏪</div>
+            <div class="card-title">상점</div>
+            <div class="card-desc">아이템 구매</div>
+        </a>
+        
+        <a href="/pokedex" class="menu-card">
+            <div class="card-icon">📖</div>
+            <div class="card-title">도감</div>
+            <div class="card-desc">포켓몬 도감</div>
+        </a>
+        
+        <a href="#" class="menu-card" onclick="healPokemon(); return false;">
+            <div class="card-icon">💊</div>
+            <div class="card-title">회복</div>
+            <div class="card-desc">포켓몬 치료</div>
+        </a>
+        
+        <a href="#" class="menu-card disabled">
+            <div class="card-icon">⚙️</div>
+            <div class="card-title">설정</div>
+            <div class="card-desc">게임 설정</div>
+        </a>
+    </div>
+    
+    <div class="pictochat-footer">
+        <div class="input-area">
+            <span class="footer-text">{{ user.username }}의 모험</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function healPokemon() {
+    try {
+        const response = await fetch('/api/heal_pokemon', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert('포켓몬이 모두 회복되었습니다!');
+            location.reload();
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('회복 중 오류가 발생했습니다.');
+    }
+}
+
+// 시간 표시
+function updateTime() {
+    const now = new Date();
+    const timeStr = now.getHours().toString().padStart(2, '0') + ':' + 
+                   now.getMinutes().toString().padStart(2, '0');
+    document.querySelector('.time-display').textContent = timeStr;
+}
+
+setInterval(updateTime, 1000);
+updateTime();
+</script>
+{% endblock %}

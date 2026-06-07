@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+
+{% block title %}포켓몬 DS - 상점{% endblock %}
+
+{% block top_screen %}
+<div class="shop-screen">
+    <div class="shop-header">
+        <h2>🏪 프렌들리 샵</h2>
+        <div class="money-display">
+            <span class="money-icon">💰</span>
+            <span class="money-amount">{{ user.money }}원</span>
+        </div>
+    </div>
+    
+    <div class="shop-keeper">
+        <div class="keeper-sprite">👨‍💼</div>
+        <div class="keeper-message">
+            <p>"어서오세요! 무엇을 도와드릴까요?"</p>
+        </div>
+    </div>
+    
+    <div class="my-inventory">
+        <h3>내 가방</h3>
+        <div class="inventory-list">
+            {% if inventory %}
+            {% for item in inventory %}
+            <div class="inventory-item">
+                <span class="item-name">{{ item.name_ko }}</span>
+                <span class="item-count">x{{ item.count }}</span>
+            </div>
+            {% endfor %}
+            {% else %}
+            <p class="empty-inventory">가방이 비어있습니다</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block bottom_screen %}
+<div class="shop-menu">
+    <div class="pictochat-header">
+        <h3>상품 목록</h3>
+        <a href="/main" class="btn-back-main">← 메인으로</a>
+    </div>
+    
+    <div class="shop-items">
+        {% for item in items %}
+        <div class="shop-item-card">
+            <div class="item-header">
+                <h4>{{ item.name_ko }}</h4>
+                <span class="item-type">{{ item.type }}</span>
+            </div>
+            <p class="item-effect">{{ item.effect }}</p>
+            <div class="item-footer">
+                <span class="item-price">💰 {{ item.price }}원</span>
+                <button class="btn-buy" onclick="buyItem({{ item.item_id }}, '{{ item.name_ko }}', {{ item.price }})">구매</button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+async function buyItem(itemId, itemName, price) {
+    const currentMoney = {{ user.money }};
+    
+    if (currentMoney < price) {
+        alert('돈이 부족합니다!');
+        return;
+    }
+    
+    if (!confirm(`${itemName}을(를) ${price}원에 구매하시겠습니까?`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/buy_item', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                item_id: itemId
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            alert(`${itemName}을(를) 구매했습니다!`);
+            location.reload();
+        } else {
+            alert(data.message || '구매할 수 없습니다.');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('구매 중 오류가 발생했습니다.');
+    }
+}
+</script>
+{% endblock %}

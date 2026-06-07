@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}포켓몬 DS - 시작{% endblock %}
+
+{% block top_screen %}
+<div class="title-screen">
+    <h1 class="game-title">포켓몬</h1>
+    <h2 class="game-subtitle">DS 어드벤처</h2>
+    {% if starters %}
+    <div class="starter-display">
+        <p class="starter-prompt">스타터 포켓몬을 선택하세요!</p>
+    </div>
+    {% else %}
+    <div class="title-animation">
+        <div class="pokeball-icon">⚪</div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block bottom_screen %}
+{% if choose_mode %}
+<div class="starter-selection">
+    <h3>스타터 포켓몬 선택</h3>
+    <div class="starter-grid">
+        {% for starter in starters %}
+        <div class="starter-card" onclick="selectStarter({{ starter.id }})">
+            <img src="{{ starter.image_url }}" alt="{{ starter.name_ko }}" class="starter-img">
+            <div class="starter-info">
+                <h4>{{ starter.name_ko }}</h4>
+                <div class="type-badges">
+                    <span class="type-badge type-{{ starter.type1 }}">{{ starter.type1 }}</span>
+                    {% if starter.type2 %}
+                    <span class="type-badge type-{{ starter.type2 }}">{{ starter.type2 }}</span>
+                    {% endif %}
+                </div>
+                <p class="starter-desc">{{ starter.description }}</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="start-menu pictochat-style">
+    <div class="pictochat-header">
+        <div class="wifi-icon">📶</div>
+        <div class="battery-icon">🔋</div>
+    </div>
+    
+    <div class="menu-options">
+        <div class="menu-item" onclick="showNewGameForm()">
+            <div class="menu-icon">🎮</div>
+            <div class="menu-text">새로운 모험</div>
+        </div>
+        <div class="menu-item disabled">
+            <div class="menu-icon">💾</div>
+            <div class="menu-text">계속하기</div>
+        </div>
+        <div class="menu-item disabled">
+            <div class="menu-icon">⚙️</div>
+            <div class="menu-text">설정</div>
+        </div>
+    </div>
+    
+    <div id="newGameForm" class="new-game-form" style="display: none;">
+        <form method="POST" action="/new_game">
+            <div class="form-group">
+                <label>트레이너 이름:</label>
+                <input type="text" name="username" maxlength="10" placeholder="이름을 입력하세요" required>
+            </div>
+            <div class="form-actions">
+                <button type="submit" class="btn-primary">시작하기</button>
+                <button type="button" class="btn-secondary" onclick="hideNewGameForm()">취소</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function showNewGameForm() {
+    document.getElementById('newGameForm').style.display = 'block';
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.style.opacity = '0.3';
+    });
+}
+
+function hideNewGameForm() {
+    document.getElementById('newGameForm').style.display = 'none';
+    document.querySelectorAll('.menu-item').forEach(item => {
+        item.style.opacity = '1';
+    });
+}
+
+function selectStarter(pokemonId) {
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '/select_starter';
+    
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'id';
+    input.value = pokemonId;
+    
+    form.appendChild(input);
+    document.body.appendChild(form);
+    form.submit();
+}
+</script>
+{% endblock %}

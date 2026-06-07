@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}포켓몬 DS{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="ds-container">
+        <!-- 상단 화면 -->
+        <div class="ds-screen ds-screen-top">
+            <div class="screen-bezel">
+                <div class="screen-content">
+                    {% block top_screen %}
+                    <div class="welcome-screen">
+                        <h1>포켓몬 어드벤처</h1>
+                    </div>
+                    {% endblock %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- 중간 힌지 -->
+        <div class="ds-hinge"></div>
+        
+        <!-- 하단 화면 (터치스크린) -->
+        <div class="ds-screen ds-screen-bottom">
+            <div class="screen-bezel">
+                <div class="screen-content">
+                    {% block bottom_screen %}
+                    <div class="menu-screen">
+                        <p>메뉴를 선택하세요</p>
+                    </div>
+                    {% endblock %}
+                </div>
+            </div>
+            
+            <!-- 버튼 컨트롤 -->
+            <div class="ds-controls">
+                <div class="dpad">
+                    <button class="dpad-btn dpad-up">▲</button>
+                    <button class="dpad-btn dpad-left">◀</button>
+                    <button class="dpad-btn dpad-center">⊙</button>
+                    <button class="dpad-btn dpad-right">▶</button>
+                    <button class="dpad-btn dpad-down">▼</button>
+                </div>
+                <div class="action-btns">
+                    <button class="btn-a">A</button>
+                    <button class="btn-b">B</button>
+                </div>
+                <div class="start-select">
+                    <button class="btn-select">SELECT</button>
+                    <button class="btn-start">START</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='/js/main.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>
