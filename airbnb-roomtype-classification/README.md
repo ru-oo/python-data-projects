@@ -5,6 +5,8 @@ XGBoost와 Random Forest 두 모델의 성능을 비교한 분류 프로젝트�
 
 ## 데모
 
+발표 자료: [NYC Airbnb Presentation (PDF)](./docs/NYC_Airbnb_Presentation.pptx.pdf)
+
 > Streamlit 비교 시각화 앱 실행 화면 스크린샷/GIF는 추후 추가 예정입니다.
 
 ## 개요
@@ -78,6 +80,7 @@ airbnb-roomtype-classification/
 ├── app.py                         # 간단 예측 앱
 ├── models/                        # 학습 결과 (모델 pkl은 제외, 비교 리포트·차트 포함)
 ├── output/                        # 분석 차트 이미지
+├── docs/                          # 발표 자료 (PDF)
 └── requirements.txt
 ```
 
