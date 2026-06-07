@@ -43,6 +43,8 @@ dist/
 *.sqlite
 *.sqlite3
 *.sql
+# 예외: 포켓몬 게임 DB 스키마/시드 덤프는 저장소에 포함
+!pokemon-web-game/schema/pokemon.sql
 
 # ---- Flask ----
 instance/

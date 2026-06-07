@@ -6,7 +6,11 @@ Flask 서버와 SQL 데이터 모델로 구현했습니다.
 
 ## 데모
 
-> 게임 플레이 화면 스크린샷/GIF는 추후 추가 예정입니다.
+배틀 화면 — 야생 포켓몬과의 전투(싸우다 / 가방 / 포켓몬 / 도망)
+
+![배틀 화면](./picture/gameplay.png)
+
+발표 자료: [데이터베이스 설계 슬라이드 (PDF)](./docs/sql.pdf)
 
 ## 개요
 
@@ -26,19 +30,14 @@ Flask 서버와 SQL 데이터 모델로 구현했습니다.
 
 ## 시스템 아키텍처
 
-```
-브라우저 (Jinja2 템플릿 + static JS)
-        │  폼 제출 / fetch(JSON) API
-        ▼
-Flask (app.py)
-   ├─ 페이지 라우트: /, /main, /battle, /pc, /shop, /pokedex
-   ├─ API 라우트: /api/battle/action, /api/buy_item, /api/swap_pokemon ...
-   └─ execute_query() 헬퍼 + get_db() 컨텍스트 매니저 (PyMySQL)
-        │
-        ▼
-MariaDB (pokemon_db)
-   users · my_pokemon · pokemon_full_info · items · inventory
-   · encounters · locations · moves · pokemon_moves · pokedex_progress
+```mermaid
+flowchart TD
+    B[브라우저<br/>Jinja2 템플릿 + static JS] -->|폼 제출 / fetch JSON| F[Flask · app.py]
+    F --> R[페이지 라우트<br/>/ · /main · /battle · /pc · /shop · /pokedex]
+    F --> A[API 라우트<br/>/api/battle/action · buy_item · swap_pokemon]
+    R --> Q[execute_query · get_db<br/>PyMySQL 컨텍스트 매니저]
+    A --> Q
+    Q --> DB[(MariaDB · pokemon_db<br/>users · my_pokemon · pokemon_full_info<br/>items · inventory · encounters · locations<br/>moves · pokemon_moves · pokedex_progress)]
 ```
 
 ## 기술 스택
@@ -68,15 +67,18 @@ pip install -r requirements.txt
 # 1) 환경 변수 설정
 cp .env.example .env        # 이후 DB 접속 정보를 본인 환경에 맞게 수정
 
-# 2) MariaDB에 데이터베이스/스키마 준비 후 서버 실행
+# 2) 데이터베이스 스키마 + 시드 데이터 import
+mysql -u root -p < schema/pokemon.sql
+
+# 3) 서버 실행
 python Run.py               # 또는: python app.py
 ```
 
 서버 기본 주소는 `http://localhost:5000` 입니다.
 
-> **DB 준비 필요**: 게임은 `pokemon_db` 데이터베이스와 위 테이블 스키마(포켓몬 도감·기술 등
-> 시드 데이터 포함)를 전제로 동작합니다. 스키마/시드 SQL 덤프는 용량·민감도 문제로 저장소에
-> 포함하지 않았습니다. 스키마 적용 후 `Init_db.py` 로 기본 아이템 시드를 넣을 수 있습니다.
+> **DB 준비**: 게임은 `pokemon_db` 데이터베이스를 전제로 동작합니다. `schema/pokemon.sql` 에
+> 테이블 구조와 포켓몬 도감·기술·아이템 등 시드 데이터가 모두 포함돼 있어, 위와 같이 import 한
+> 뒤 실행하면 됩니다. (추가로 `Init_db.py` 로 기본 아이템 시드를 넣을 수도 있습니다.)
 
 ## 디렉터리 구조
 
@@ -88,6 +90,9 @@ pokemon-web-game/
 ├── db_utils.py       # DB 연결 점검 유틸
 ├── Init_db.py        # 테이블 확인 + 기본 아이템 시드
 ├── manage_db.py      # DB 관리 스크립트
+├── schema/           # DB 스키마 + 시드 데이터 (pokemon.sql)
+├── docs/             # DB 설계 발표 자료 (PDF)
+├── picture/          # 게임 플레이 스크린샷
 ├── templates/        # Jinja2 템플릿 (start/main/battle/pc/shop/pokedex)
 ├── static/           # css / js / images
 ├── requirements.txt
@@ -96,5 +101,5 @@ pokemon-web-game/
 
 ## 알려진 한계 / 향후 계획
 
-- DB 스키마/시드 SQL이 저장소에 포함돼 있지 않아, 별도 준비가 필요합니다(스키마 덤프 정리가 과제).
+- 초기 구동에 `schema/pokemon.sql` import가 필요합니다(자동 마이그레이션 도구는 없음).
 - 인증이 세션 기반 단순 구조라, 실제 서비스 수준의 계정/보안 처리는 향후 개선 대상입니다.
